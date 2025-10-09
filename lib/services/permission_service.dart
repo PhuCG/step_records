@@ -16,7 +16,7 @@ class PermissionService {
   ];
 
   // Required permissions for iOS
-  static const List<Permission> _iosPermissions = [];
+  static const List<Permission> _iosPermissions = [Permission.sensors];
 
   Future<bool> requestAllPermissions() async {
     try {
