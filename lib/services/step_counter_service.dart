@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:developer';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:uuid/uuid.dart';
@@ -148,6 +148,7 @@ class StepCounterService {
 
       _stepSubscription = stepStream().listen(
         (event) async {
+          log('message $event');
           // Handle step count event
 
           await _handleStepChange(event);
@@ -234,11 +235,11 @@ class StepCounterService {
   bool get isServiceRunning => _isServiceRunning;
   int get currentSteps => _currentSteps;
   String get currentSessionId => _currentSessionId;
+}
 
-  @pragma('vm:entry-point')
-  static Future<void> _startCallback() async {
-    FlutterForegroundTask.setTaskHandler(StepCounterTaskHandler());
-  }
+@pragma('vm:entry-point')
+Future<void> _startCallback() async {
+  FlutterForegroundTask.setTaskHandler(StepCounterTaskHandler());
 }
 
 class StepCounterTaskHandler extends TaskHandler {

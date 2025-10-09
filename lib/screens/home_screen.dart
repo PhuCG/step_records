@@ -3,10 +3,8 @@ import 'package:intl/intl.dart';
 import '../services/step_counter_service.dart';
 import '../services/storage_service.dart';
 import '../services/permission_service.dart';
-import '../services/export_service.dart';
 import '../models/app_state.dart';
 import 'settings_screen.dart';
-import 'export_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -46,14 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
       _showErrorSnackBar('Failed to initialize app: $e');
-    }
-  }
-
-  Future<void> _toggleService() async {
-    if (_appState.isServiceRunning) {
-      await _stopService();
-    } else {
-      await _startService();
     }
   }
 
@@ -229,19 +219,24 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(
               height: 56,
               child: ElevatedButton.icon(
-                onPressed: _toggleService,
-                icon: Icon(
-                  _appState.isServiceRunning ? Icons.stop : Icons.play_arrow,
-                ),
-                label: Text(
-                  _appState.isServiceRunning
-                      ? 'Stop Tracking'
-                      : 'Start Tracking',
-                ),
+                onPressed: _startService,
+                icon: Icon(Icons.play_arrow),
+                label: Text('Start Tracking'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _appState.isServiceRunning
-                      ? Colors.red
-                      : Colors.green,
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _stopService,
+                icon: Icon(Icons.stop),
+                label: Text('Stop Tracking'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -303,80 +298,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
             const SizedBox(height: 24),
-
-            // Data information
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Data & Logs',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Total records:'),
-                        Text('$_totalRecords'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showExportDialog(),
-                        icon: const Icon(Icons.download),
-                        label: const Text('Export Logs'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showExportDialog() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => ExportDialog(
-        onExport: (from, to, format) async {
-          try {
-            final filePath = await ExportService.instance.exportData(
-              from: from,
-              to: to,
-              format: format,
-            );
-
-            if (mounted) {
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                SnackBar(
-                  content: Text('Export completed: $filePath'),
-                  action: SnackBarAction(
-                    label: 'Share',
-                    onPressed: () => ExportService.instance.shareFile(filePath),
-                  ),
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              _showErrorSnackBar('Export failed: $e');
-            }
-          }
-        },
       ),
     );
   }
