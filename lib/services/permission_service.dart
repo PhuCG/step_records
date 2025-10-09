@@ -16,18 +16,17 @@ class PermissionService {
   ];
 
   // Required permissions for iOS
-  static const List<Permission> _iosPermissions = [Permission.sensors];
+  static const List<Permission> _iosPermissions = [];
 
   Future<bool> requestAllPermissions() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
 
       List<Permission> permissionsToRequest = [];
 
       if (Platform.isAndroid) {
         permissionsToRequest = List.from(_androidPermissions);
-
+        final androidInfo = await deviceInfo.androidInfo;
         // Add Android 13+ specific permissions
         if (androidInfo.version.sdkInt >= 33) {
           permissionsToRequest.add(Permission.notification);
@@ -65,13 +64,12 @@ class PermissionService {
   Future<bool> checkAllPermissions() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
 
       List<Permission> permissionsToCheck = [];
 
       if (Platform.isAndroid) {
         permissionsToCheck = List.from(_androidPermissions);
-
+        final androidInfo = await deviceInfo.androidInfo;
         // Add Android 13+ specific permissions
         if (androidInfo.version.sdkInt >= 33) {
           permissionsToCheck.add(Permission.notification);
@@ -104,13 +102,12 @@ class PermissionService {
 
     try {
       final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
 
       List<Permission> permissionsToCheck = [];
 
       if (Platform.isAndroid) {
         permissionsToCheck = List.from(_androidPermissions);
-
+        final androidInfo = await deviceInfo.androidInfo;
         // Add Android 13+ specific permissions
         if (androidInfo.version.sdkInt >= 33) {
           permissionsToCheck.add(Permission.notification);

@@ -38,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Initialize service first to allow state reconciliation
       await StepCounterService.instance.initialize();
       // Initialize storage
-      await StorageService.instance.initialize();
 
       // Load app state
       _appState = await StorageService.instance.getAppState();
