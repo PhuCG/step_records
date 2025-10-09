@@ -1,22 +1,15 @@
-import 'package:hive/hive.dart';
+import 'package:isar_community/isar.dart';
 
 part 'app_state.g.dart';
 
-@HiveType(typeId: 2)
+@collection
 class AppState {
-  @HiveField(0)
+  Id id = 0; // always a single row with fixed id
+
   DateTime? serviceStartTime;
-
-  @HiveField(1)
   int lastKnownSteps;
-
-  @HiveField(2)
   String currentSessionId;
-
-  @HiveField(3)
   bool isServiceRunning;
-
-  @HiveField(4)
   DateTime? lastUpdateTime;
 
   AppState({

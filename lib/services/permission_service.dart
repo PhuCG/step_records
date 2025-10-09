@@ -1,7 +1,7 @@
+import 'dart:developer';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'logger.dart';
 
 class PermissionService {
   static final PermissionService _instance = PermissionService._internal();
@@ -36,10 +36,9 @@ class PermissionService {
         permissionsToRequest = List.from(_iosPermissions);
       }
 
-      await Logger.info('PERMISSION_REQUEST', {
-        'platform': Platform.isAndroid ? 'android' : 'ios',
-        'permissions': permissionsToRequest.map((p) => p.toString()).toList(),
-      });
+      log(
+        'PERMISSION_REQUEST platform: ${Platform.isAndroid ? 'android' : 'ios'} permissions: ${permissionsToRequest.map((p) => p.toString()).toList()}',
+      );
 
       final results = await permissionsToRequest.request();
 
@@ -48,20 +47,17 @@ class PermissionService {
         final status = results[permission];
         if (status != PermissionStatus.granted) {
           allGranted = false;
-          await Logger.warn('PERMISSION_DENIED', {
-            'permission': permission.toString(),
-            'status': status.toString(),
-          });
+          log('PERMISSION_DENIED permission: $permission status: $status');
         }
       }
 
       if (allGranted) {
-        await Logger.info('PERMISSION_GRANTED', {'all_permissions': true});
+        log('PERMISSION_GRANTED all_permissions: true');
       }
 
       return allGranted;
     } catch (e) {
-      await Logger.error('PERMISSION_ERROR', {'error': e.toString()});
+      log('PERMISSION_ERROR error: $e');
       return false;
     }
   }
@@ -87,19 +83,18 @@ class PermissionService {
       for (final permission in permissionsToCheck) {
         final status = await permission.status;
         if (status != PermissionStatus.granted) {
-          await Logger.debug('PERMISSION_CHECK', {
-            'permission': permission.toString(),
-            'status': status.toString(),
-            'granted': false,
-          });
+          log(
+            'PERMISSION_CHECK permission: $permission status: $status granted: false',
+          );
+
           return false;
         }
       }
 
-      await Logger.debug('PERMISSION_CHECK', {'all_granted': true});
+      log('PERMISSION_CHECK all_granted: true');
       return true;
     } catch (e) {
-      await Logger.error('PERMISSION_CHECK_ERROR', {'error': e.toString()});
+      log('PERMISSION_CHECK_ERROR error: $e');
       return false;
     }
   }
@@ -130,7 +125,7 @@ class PermissionService {
             permissionStatus == PermissionStatus.granted;
       }
     } catch (e) {
-      await Logger.error('PERMISSION_STATUS_ERROR', {'error': e.toString()});
+      log('PERMISSION_STATUS_ERROR error: $e');
     }
 
     return status;
@@ -139,10 +134,10 @@ class PermissionService {
   Future<bool> openAppSettings() async {
     try {
       await openAppSettings();
-      await Logger.info('APP_SETTINGS_OPENED', {});
+      log('APP_SETTINGS_OPENED');
       return true;
     } catch (e) {
-      await Logger.error('APP_SETTINGS_ERROR', {'error': e.toString()});
+      log('APP_SETTINGS_ERROR error: $e');
       return false;
     }
   }
@@ -157,13 +152,11 @@ class PermissionService {
       }
 
       final result = await Permission.ignoreBatteryOptimizations.request();
-      await Logger.info('BATTERY_OPTIMIZATION_REQUEST', {
-        'result': result.toString(),
-      });
+      log('BATTERY_OPTIMIZATION_REQUEST result: $result');
 
       return result == PermissionStatus.granted;
     } catch (e) {
-      await Logger.error('BATTERY_OPTIMIZATION_ERROR', {'error': e.toString()});
+      log('BATTERY_OPTIMIZATION_ERROR error: $e');
       return false;
     }
   }

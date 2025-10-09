@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import '../models/step_record.dart';
 import '../models/app_state.dart';
 import 'storage_service.dart';
-import 'logger.dart';
 
 class StepCounterService {
   static final StepCounterService _instance = StepCounterService._internal();
@@ -47,9 +46,9 @@ class StepCounterService {
 
       await _syncRunningStateFromSystem();
       await _reconcileStateIfNeeded();
-      await Logger.info('SERVICE_INITIALIZED', {'running': _isServiceRunning});
+      log('SERVICE_INITIALIZED running: $_isServiceRunning');
     } catch (e) {
-      await Logger.error('SERVICE_INIT_ERROR', {'error': e.toString()});
+      log('SERVICE_INIT_ERROR error: $e');
       rethrow;
     }
   }
@@ -64,7 +63,7 @@ class StepCounterService {
     try {
       await _syncRunningStateFromSystem();
       if (_isServiceRunning) {
-        await Logger.warn('SERVICE_ALREADY_RUNNING', {});
+        log('SERVICE_ALREADY_RUNNING');
         // Ensure subscription exists even if process was recreated
         if (!_hasActiveSubscription) {
           await _reconcileStateIfNeeded();
@@ -101,15 +100,14 @@ class StepCounterService {
         // Start step counting
         await _startStepCounting();
 
-        await Logger.info('SERVICE_STARTED', {
-          'session_id': _currentSessionId,
-          'last_known_steps': _lastKnownSteps,
-        });
+        log(
+          'SERVICE_STARTED session_id: $_currentSessionId last_known_steps: $_lastKnownSteps',
+        );
       }
 
       return result is ServiceRequestSuccess;
     } catch (e) {
-      await Logger.error('SERVICE_START_ERROR', {'error': e.toString()});
+      log('SERVICE_START_ERROR error: $e');
       return false;
     }
   }
@@ -118,7 +116,8 @@ class StepCounterService {
     try {
       await _syncRunningStateFromSystem();
       if (!_isServiceRunning) {
-        await Logger.warn('SERVICE_NOT_RUNNING', {});
+        log('SERVICE_NOT_RUNNING');
+
         return true;
       }
 
@@ -143,15 +142,14 @@ class StepCounterService {
         );
         await StorageService.instance.saveAppState(updatedState);
 
-        await Logger.info('SERVICE_STOPPED', {
-          'session_id': _currentSessionId,
-          'final_steps': _currentSteps,
-        });
+        log(
+          'SERVICE_STOPPED session_id: $_currentSessionId final_steps: $_currentSteps',
+        );
       }
 
       return result is ServiceRequestSuccess;
     } catch (e) {
-      await Logger.error('SERVICE_STOP_ERROR', {'error': e.toString()});
+      log('SERVICE_STOP_ERROR error: $e');
       return false;
     }
   }
@@ -169,14 +167,14 @@ class StepCounterService {
           await _handleStepChange(event);
         },
         onError: (error) async {
-          await Logger.error('PEDOMETER_ERROR', {'error': error.toString()});
+          log('PEDOMETER_ERROR error: $error');
         },
         cancelOnError: false,
       );
 
-      await Logger.info('STEP_COUNTING_STARTED', {});
+      log('STEP_COUNTING_STARTED');
     } catch (e) {
-      await Logger.error('STEP_COUNTING_ERROR', {'error': e.toString()});
+      log('STEP_COUNTING_ERROR error: $e');
     }
   }
 
@@ -187,7 +185,7 @@ class StepCounterService {
       _isServiceRunning = running;
     } catch (e) {
       // If querying fails, keep current state but log for diagnostics
-      await Logger.error('SERVICE_STATE_QUERY_ERROR', {'error': e.toString()});
+      log('SERVICE_STATE_QUERY_ERROR error: $e');
     }
   }
 
@@ -217,7 +215,7 @@ class StepCounterService {
       // Keep notification in sync
       await _updateNotification();
     } catch (e) {
-      await Logger.error('SERVICE_RECONCILE_ERROR', {'error': e.toString()});
+      log('SERVICE_RECONCILE_ERROR error: $e');
     }
   }
 
@@ -256,17 +254,12 @@ class StepCounterService {
         // Update notification
         await _updateNotification();
 
-        await Logger.debug('STEP_RECORDED', {
-          'steps': steps,
-          'delta': delta,
-          'session_id': appState.currentSessionId,
-        });
+        log(
+          'STEP_RECORDED steps: $steps delta: $delta session_id: ${appState.currentSessionId}',
+        );
       }
     } catch (e) {
-      await Logger.error('STEP_HANDLE_ERROR', {
-        'error': e.toString(),
-        'steps': steps,
-      });
+      log('STEP_HANDLE_ERROR error: $e steps: $steps');
     }
   }
 
@@ -278,7 +271,7 @@ class StepCounterService {
             '$_currentSteps steps today • Last: ${_formatTime(DateTime.now())}',
       );
     } catch (e) {
-      await Logger.error('NOTIFICATION_UPDATE_ERROR', {'error': e.toString()});
+      log('NOTIFICATION_UPDATE_ERROR error: $e');
     }
   }
 
@@ -312,9 +305,7 @@ class StepCounterTaskHandler extends TaskHandler {
     );
     await StorageService.instance.saveAppState(updated);
 
-    await Logger.info('TASK_HANDLER_START', {
-      'timestamp': timestamp.toIso8601String(),
-    });
+    log('TASK_HANDLER_START timestamp: ${timestamp.toIso8601String()}');
   }
 
   @override
@@ -336,8 +327,6 @@ class StepCounterTaskHandler extends TaskHandler {
     );
     await StorageService.instance.saveAppState(updated);
 
-    await Logger.info('TASK_HANDLER_DESTROY', {
-      'timestamp': timestamp.toIso8601String(),
-    });
+    log('TASK_HANDLER_DESTROY timestamp: ${timestamp.toIso8601String()}');
   }
 }

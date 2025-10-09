@@ -22,6 +22,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeApp();
+    // Subscribe to app state changes via database watcher for live UI updates
+    StorageService.instance.watchAppStateLazy().listen((_) async {
+      final appState = await StorageService.instance.getAppState();
+      if (mounted) {
+        setState(() {
+          _appState = appState;
+        });
+      }
+    });
   }
 
   Future<void> _initializeApp() async {

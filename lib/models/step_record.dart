@@ -1,26 +1,17 @@
-import 'package:hive/hive.dart';
+import 'package:isar_community/isar.dart';
 
 part 'step_record.g.dart';
 
-@HiveType(typeId: 0)
+@collection
 class StepRecord {
-  @HiveField(0)
-  String id;
+  Id autoId = Isar.autoIncrement; // internal primary key for isar
 
-  @HiveField(1)
-  int steps;
-
-  @HiveField(2)
-  int delta;
-
-  @HiveField(3)
-  DateTime timestamp;
-
-  @HiveField(4)
-  String sessionId;
-
-  @HiveField(5)
-  bool synced; // For future server sync
+  late String id; // external uuid
+  late int steps;
+  late int delta;
+  late DateTime timestamp;
+  late String sessionId;
+  late bool synced; // For future server sync
 
   StepRecord({
     required this.id,
