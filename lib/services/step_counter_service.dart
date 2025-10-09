@@ -21,6 +21,7 @@ class StepCounterService {
   int _lastKnownSteps = 0;
   String _currentSessionId = '';
   bool _isServiceRunning = false;
+  bool get _hasActiveSubscription => _stepSubscription != null;
 
   Future<void> initialize() async {
     try {
@@ -44,17 +45,30 @@ class StepCounterService {
         ),
       );
 
-      await Logger.info('SERVICE_INITIALIZED', {});
+      await _syncRunningStateFromSystem();
+      await _reconcileStateIfNeeded();
+      await Logger.info('SERVICE_INITIALIZED', {'running': _isServiceRunning});
     } catch (e) {
       await Logger.error('SERVICE_INIT_ERROR', {'error': e.toString()});
       rethrow;
     }
   }
 
+  // Public API to force reconnection/reconciliation when app returns to foreground
+  Future<void> reconcile() async {
+    await _syncRunningStateFromSystem();
+    await _reconcileStateIfNeeded();
+  }
+
   Future<bool> startService() async {
     try {
+      await _syncRunningStateFromSystem();
       if (_isServiceRunning) {
         await Logger.warn('SERVICE_ALREADY_RUNNING', {});
+        // Ensure subscription exists even if process was recreated
+        if (!_hasActiveSubscription) {
+          await _reconcileStateIfNeeded();
+        }
         return true;
       }
 
@@ -102,6 +116,7 @@ class StepCounterService {
 
   Future<bool> stopService() async {
     try {
+      await _syncRunningStateFromSystem();
       if (!_isServiceRunning) {
         await Logger.warn('SERVICE_NOT_RUNNING', {});
         return true;
@@ -162,6 +177,47 @@ class StepCounterService {
       await Logger.info('STEP_COUNTING_STARTED', {});
     } catch (e) {
       await Logger.error('STEP_COUNTING_ERROR', {'error': e.toString()});
+    }
+  }
+
+  Future<void> _syncRunningStateFromSystem() async {
+    try {
+      // Query the real foreground service state to avoid stale in-memory value
+      final running = await FlutterForegroundTask.isRunningService;
+      _isServiceRunning = running;
+    } catch (e) {
+      // If querying fails, keep current state but log for diagnostics
+      await Logger.error('SERVICE_STATE_QUERY_ERROR', {'error': e.toString()});
+    }
+  }
+
+  Future<void> _reconcileStateIfNeeded() async {
+    try {
+      if (!_isServiceRunning) {
+        return;
+      }
+
+      // Load persisted app state
+      final appState = await StorageService.instance.getAppState();
+
+      // Restore session id and counters if available
+      _currentSessionId = appState.currentSessionId.isNotEmpty
+          ? appState.currentSessionId
+          : (_currentSessionId.isNotEmpty
+                ? _currentSessionId
+                : const Uuid().v4());
+      _lastKnownSteps = appState.lastKnownSteps;
+      _currentSteps = _lastKnownSteps;
+
+      // Ensure pedometer subscription is active after process recreation
+      if (!_hasActiveSubscription) {
+        await _startStepCounting();
+      }
+
+      // Keep notification in sync
+      await _updateNotification();
+    } catch (e) {
+      await Logger.error('SERVICE_RECONCILE_ERROR', {'error': e.toString()});
     }
   }
 
@@ -245,6 +301,17 @@ Future<void> _startCallback() async {
 class StepCounterTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    // Persist that the service is running to survive app kills; session id is managed in service
+    final appState = await StorageService.instance.getAppState();
+    final updated = AppState(
+      serviceStartTime: appState.serviceStartTime ?? timestamp,
+      lastKnownSteps: appState.lastKnownSteps,
+      currentSessionId: appState.currentSessionId,
+      isServiceRunning: true,
+      lastUpdateTime: DateTime.now(),
+    );
+    await StorageService.instance.saveAppState(updated);
+
     await Logger.info('TASK_HANDLER_START', {
       'timestamp': timestamp.toIso8601String(),
     });
@@ -258,6 +325,17 @@ class StepCounterTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp) async {
+    // Persist that the service has stopped, covers cases when user dismisses notification or OS stops service
+    final appState = await StorageService.instance.getAppState();
+    final updated = AppState(
+      serviceStartTime: appState.serviceStartTime,
+      lastKnownSteps: appState.lastKnownSteps,
+      currentSessionId: appState.currentSessionId,
+      isServiceRunning: false,
+      lastUpdateTime: DateTime.now(),
+    );
+    await StorageService.instance.saveAppState(updated);
+
     await Logger.info('TASK_HANDLER_DESTROY', {
       'timestamp': timestamp.toIso8601String(),
     });

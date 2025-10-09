@@ -13,28 +13,28 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppState _appState = AppState();
   bool _isLoading = true;
-  int _totalRecords = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
     try {
+      // Initialize service first to allow state reconciliation
+      await StepCounterService.instance.initialize();
       // Initialize storage
       await StorageService.instance.initialize();
 
       // Load app state
       _appState = await StorageService.instance.getAppState();
 
-      // Load total records count
-      final records = await StorageService.instance.getAllStepRecords();
-      _totalRecords = records.length;
+      // Optionally load records if needed for UI; skipped to avoid unused warnings
 
       setState(() {
         _isLoading = false;
@@ -45,6 +45,21 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       _showErrorSnackBar('Failed to initialize app: $e');
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // When app comes back to foreground, reconcile service state and refresh UI
+      StepCounterService.instance.reconcile().then((_) => _refreshAppState());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _startService() async {
@@ -90,11 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshAppState() async {
     final appState = await StorageService.instance.getAppState();
-    final records = await StorageService.instance.getAllStepRecords();
 
     setState(() {
       _appState = appState;
-      _totalRecords = records.length;
     });
   }
 
