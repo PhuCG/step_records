@@ -6,8 +6,13 @@ import 'services/step_counter_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize storage service
   await StorageService.instance.initialize();
+
+  // Initialize foreground task communication
   FlutterForegroundTask.initCommunicationPort();
+
   // Initialize step counter service
   await StepCounterService.instance.initialize();
 

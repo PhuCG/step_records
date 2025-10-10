@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/permission_service.dart';
+import '../services/storage_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -104,7 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       try {
-        // This would require implementing a clearAllData method in StorageService
+        await StorageService.instance.clearAllData();
         _showSuccessSnackBar('All data cleared');
       } catch (e) {
         _showErrorSnackBar('Error clearing data: $e');
@@ -166,6 +167,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Required permissions for step counting functionality.',
                   ),
                   const SizedBox(height: 16),
                   ..._permissionStatus.entries.map(
@@ -252,6 +257,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 16),
 
+          // Debug info
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Debug Information',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder(
+                    future: StorageService.instance.getAppState(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final appState = snapshot.data!;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Service Running: ${appState.isServiceRunning}',
+                            ),
+                            Text(
+                              'Session ID: ${appState.currentSessionId.isNotEmpty ? appState.currentSessionId.substring(0, 8) : 'None'}',
+                            ),
+                            Text(
+                              'Last Update: ${appState.lastUpdateTime?.toString() ?? 'Never'}',
+                            ),
+                            Text(
+                              'Last Reset: ${appState.lastDateReset.toString()}',
+                            ),
+                          ],
+                        );
+                      }
+                      return const Text('Loading...');
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
           // About section
           Card(
             child: Padding(
@@ -271,6 +323,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'This app counts your steps continuously and stores all data locally on your device.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Features:\n• Continuous step counting\n• Foreground service\n• Local data storage\n• Auto-restart after force kill\n• Daily step reset at midnight',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],

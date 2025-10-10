@@ -4,6 +4,7 @@ import '../services/step_counter_service.dart';
 import '../services/storage_service.dart';
 import '../services/permission_service.dart';
 import '../models/app_state.dart';
+import '../models/step_record.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppState _appState = AppState();
+  DailyStepRecord? _todayRecord;
   bool _isLoading = true;
 
   @override
@@ -31,18 +33,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       }
     });
+
+    // Subscribe to today's step changes
+    StorageService.instance.watchTodaySteps().listen((records) {
+      if (mounted && records.isNotEmpty) {
+        setState(() {
+          _todayRecord = records.first;
+        });
+      }
+    });
   }
 
   Future<void> _initializeApp() async {
     try {
       // Initialize service first to allow state reconciliation
       await StepCounterService.instance.initialize();
-      // Initialize storage
 
       // Load app state
       _appState = await StorageService.instance.getAppState();
 
-      // Optionally load records if needed for UI; skipped to avoid unused warnings
+      // Load today's step record
+      _todayRecord = await StorageService.instance.getTodayStepRecord();
 
       setState(() {
         _isLoading = false;
@@ -60,7 +71,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       // When app comes back to foreground, reconcile service state and refresh UI
-      StepCounterService.instance.reconcile().then((_) => _refreshAppState());
+      StepCounterService.instance.validateServiceState().then(
+        (_) => _refreshAppState(),
+      );
     }
   }
 
@@ -113,9 +126,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _refreshAppState() async {
     final appState = await StorageService.instance.getAppState();
+    final todayRecord = await StorageService.instance.getTodayStepRecord();
 
     setState(() {
       _appState = appState;
+      _todayRecord = todayRecord;
     });
   }
 
@@ -172,6 +187,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final todaySteps = _todayRecord?.steps ?? 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Step Counter'),
@@ -208,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      _formatSteps(_appState.lastKnownSteps),
+                      _formatSteps(todaySteps),
                       style: Theme.of(context).textTheme.headlineLarge
                           ?.copyWith(
                             fontWeight: FontWeight.bold,
@@ -224,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Last updated: ${_formatLastUpdate(_appState.lastUpdateTime)}',
+                      'Last updated: ${_formatLastUpdate(_todayRecord?.lastUpdateTime)}',
                       style: Theme.of(
                         context,
                       ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
@@ -240,24 +257,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             SizedBox(
               height: 56,
               child: ElevatedButton.icon(
-                onPressed: _startService,
-                icon: Icon(Icons.play_arrow),
-                label: Text('Start Tracking'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
+                onPressed: _appState.isServiceRunning
+                    ? _stopService
+                    : _startService,
+                icon: Icon(
+                  _appState.isServiceRunning ? Icons.stop : Icons.play_arrow,
                 ),
-              ),
-            ),
-            SizedBox(height: 16),
-            SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: _stopService,
-                icon: Icon(Icons.stop),
-                label: Text('Stop Tracking'),
+                label: Text(
+                  _appState.isServiceRunning
+                      ? 'Stop Tracking'
+                      : 'Start Tracking',
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: _appState.isServiceRunning
+                      ? Colors.red
+                      : Colors.green,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -313,6 +327,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ],
                     ),
+                    if (_appState.currentSessionId.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Session:'),
+                          Text(
+                            _appState.currentSessionId.substring(0, 8),
+                            style: const TextStyle(fontFamily: 'monospace'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

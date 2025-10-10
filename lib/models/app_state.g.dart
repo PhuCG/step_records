@@ -27,10 +27,10 @@ const AppStateSchema = CollectionSchema(
       name: r'isServiceRunning',
       type: IsarType.bool,
     ),
-    r'lastKnownSteps': PropertySchema(
+    r'lastDateReset': PropertySchema(
       id: 2,
-      name: r'lastKnownSteps',
-      type: IsarType.long,
+      name: r'lastDateReset',
+      type: IsarType.dateTime,
     ),
     r'lastUpdateTime': PropertySchema(
       id: 3,
@@ -49,7 +49,21 @@ const AppStateSchema = CollectionSchema(
   deserialize: _appStateDeserialize,
   deserializeProp: _appStateDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'currentSessionId': IndexSchema(
+      id: -7457123740971763574,
+      name: r'currentSessionId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'currentSessionId',
+          type: IndexType.hash,
+          caseSensitive: true,
+        ),
+      ],
+    ),
+  },
   links: {},
   embeddedSchemas: {},
 
@@ -77,7 +91,7 @@ void _appStateSerialize(
 ) {
   writer.writeString(offsets[0], object.currentSessionId);
   writer.writeBool(offsets[1], object.isServiceRunning);
-  writer.writeLong(offsets[2], object.lastKnownSteps);
+  writer.writeDateTime(offsets[2], object.lastDateReset);
   writer.writeDateTime(offsets[3], object.lastUpdateTime);
   writer.writeDateTime(offsets[4], object.serviceStartTime);
 }
@@ -91,7 +105,7 @@ AppState _appStateDeserialize(
   final object = AppState(
     currentSessionId: reader.readStringOrNull(offsets[0]) ?? '',
     isServiceRunning: reader.readBoolOrNull(offsets[1]) ?? false,
-    lastKnownSteps: reader.readLongOrNull(offsets[2]) ?? 0,
+    lastDateReset: reader.readDateTimeOrNull(offsets[2]),
     lastUpdateTime: reader.readDateTimeOrNull(offsets[3]),
     serviceStartTime: reader.readDateTimeOrNull(offsets[4]),
   );
@@ -111,7 +125,7 @@ P _appStateDeserializeProp<P>(
     case 1:
       return (reader.readBoolOrNull(offset) ?? false) as P;
     case 2:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 3:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 4:
@@ -207,6 +221,62 @@ extension AppStateQueryWhere on QueryBuilder<AppState, AppState, QWhereClause> {
           includeUpper: includeUpper,
         ),
       );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterWhereClause> currentSessionIdEqualTo(
+    String currentSessionId,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(
+          indexName: r'currentSessionId',
+          value: [currentSessionId],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterWhereClause>
+  currentSessionIdNotEqualTo(String currentSessionId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'currentSessionId',
+                lower: [],
+                upper: [currentSessionId],
+                includeUpper: false,
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'currentSessionId',
+                lower: [currentSessionId],
+                includeLower: false,
+                upper: [],
+              ),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'currentSessionId',
+                lower: [currentSessionId],
+                includeLower: false,
+                upper: [],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'currentSessionId',
+                lower: [],
+                upper: [currentSessionId],
+                includeUpper: false,
+              ),
+            );
+      }
     });
   }
 }
@@ -420,52 +490,72 @@ extension AppStateQueryFilter
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastKnownStepsEqualTo(
-    int value,
-  ) {
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  lastDateResetIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'lastKnownSteps', value: value),
+        const FilterCondition.isNull(property: r'lastDateReset'),
       );
     });
   }
 
   QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastKnownStepsGreaterThan(int value, {bool include = false}) {
+  lastDateResetIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'lastDateReset'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetEqualTo(
+    DateTime? value,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'lastDateReset', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  lastDateResetGreaterThan(DateTime? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'lastKnownSteps',
+          property: r'lastDateReset',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastKnownStepsLessThan(int value, {bool include = false}) {
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'lastKnownSteps',
+          property: r'lastDateReset',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastKnownStepsBetween(
-    int lower,
-    int upper, {
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetBetween(
+    DateTime? lower,
+    DateTime? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'lastKnownSteps',
+          property: r'lastDateReset',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
@@ -653,15 +743,15 @@ extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastKnownSteps() {
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastDateReset() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastKnownSteps', Sort.asc);
+      return query.addSortBy(r'lastDateReset', Sort.asc);
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastKnownStepsDesc() {
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastDateResetDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastKnownSteps', Sort.desc);
+      return query.addSortBy(r'lastDateReset', Sort.desc);
     });
   }
 
@@ -728,15 +818,15 @@ extension AppStateQuerySortThenBy
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastKnownSteps() {
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastDateReset() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastKnownSteps', Sort.asc);
+      return query.addSortBy(r'lastDateReset', Sort.asc);
     });
   }
 
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastKnownStepsDesc() {
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastDateResetDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastKnownSteps', Sort.desc);
+      return query.addSortBy(r'lastDateReset', Sort.desc);
     });
   }
 
@@ -784,9 +874,9 @@ extension AppStateQueryWhereDistinct
     });
   }
 
-  QueryBuilder<AppState, AppState, QDistinct> distinctByLastKnownSteps() {
+  QueryBuilder<AppState, AppState, QDistinct> distinctByLastDateReset() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'lastKnownSteps');
+      return query.addDistinctBy(r'lastDateReset');
     });
   }
 
@@ -823,9 +913,9 @@ extension AppStateQueryProperty
     });
   }
 
-  QueryBuilder<AppState, int, QQueryOperations> lastKnownStepsProperty() {
+  QueryBuilder<AppState, DateTime?, QQueryOperations> lastDateResetProperty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'lastKnownSteps');
+      return query.addPropertyName(r'lastDateReset');
     });
   }
 

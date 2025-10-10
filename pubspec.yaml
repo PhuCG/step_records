@@ -35,19 +35,17 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   
-  # Step Counter Demo Dependencies
-  flutter_foreground_task: ^8.0.0
+  # Step Counter Demo Dependencies - Core
+  flutter_foreground_task: ^9.1.0
   pedometer_2: ^5.0.4
-
+  isar_community: ^3.3.0-dev.3
+  isar_community_flutter_libs: ^3.3.0-dev.3
   path_provider: ^2.1.0
   permission_handler: ^11.0.0
   connectivity_plus: ^5.0.0
   device_info_plus: ^9.1.0
   intl: ^0.18.0
   uuid: ^4.4.0
-  share_plus: ^10.0.0
-  isar_community: ^3.3.0-dev.3
-  isar_community_flutter_libs: ^3.3.0-dev.3
 
 dev_dependencies:
   flutter_test:

@@ -9,89 +9,119 @@ part of 'step_record.dart';
 // coverage:ignore-file
 // ignore_for_file: duplicate_ignore, non_constant_identifier_names, constant_identifier_names, invalid_use_of_protected_member, unnecessary_cast, prefer_const_constructors, lines_longer_than_80_chars, require_trailing_commas, inference_failure_on_function_invocation, unnecessary_parenthesis, unnecessary_raw_strings, unnecessary_null_checks, join_return_with_assignment, prefer_final_locals, avoid_js_rounded_ints, avoid_positional_boolean_parameters, always_specify_types
 
-extension GetStepRecordCollection on Isar {
-  IsarCollection<StepRecord> get stepRecords => this.collection();
+extension GetDailyStepRecordCollection on Isar {
+  IsarCollection<DailyStepRecord> get dailyStepRecords => this.collection();
 }
 
-const StepRecordSchema = CollectionSchema(
-  name: r'StepRecord',
-  id: -7514880195448679577,
+const DailyStepRecordSchema = CollectionSchema(
+  name: r'DailyStepRecord',
+  id: 865349736777983272,
   properties: {
-    r'delta': PropertySchema(id: 0, name: r'delta', type: IsarType.long),
-    r'id': PropertySchema(id: 1, name: r'id', type: IsarType.string),
-    r'sessionId': PropertySchema(
+    r'date': PropertySchema(id: 0, name: r'date', type: IsarType.dateTime),
+    r'lastKnownSteps': PropertySchema(
+      id: 1,
+      name: r'lastKnownSteps',
+      type: IsarType.long,
+    ),
+    r'lastUpdateTime': PropertySchema(
       id: 2,
+      name: r'lastUpdateTime',
+      type: IsarType.dateTime,
+    ),
+    r'sessionId': PropertySchema(
+      id: 3,
       name: r'sessionId',
       type: IsarType.string,
     ),
-    r'steps': PropertySchema(id: 3, name: r'steps', type: IsarType.long),
-    r'synced': PropertySchema(id: 4, name: r'synced', type: IsarType.bool),
-    r'timestamp': PropertySchema(
-      id: 5,
-      name: r'timestamp',
-      type: IsarType.dateTime,
-    ),
+    r'steps': PropertySchema(id: 4, name: r'steps', type: IsarType.long),
+    r'synced': PropertySchema(id: 5, name: r'synced', type: IsarType.bool),
   },
 
-  estimateSize: _stepRecordEstimateSize,
-  serialize: _stepRecordSerialize,
-  deserialize: _stepRecordDeserialize,
-  deserializeProp: _stepRecordDeserializeProp,
-  idName: r'autoId',
-  indexes: {},
+  estimateSize: _dailyStepRecordEstimateSize,
+  serialize: _dailyStepRecordSerialize,
+  deserialize: _dailyStepRecordDeserialize,
+  deserializeProp: _dailyStepRecordDeserializeProp,
+  idName: r'id',
+  indexes: {
+    r'date': IndexSchema(
+      id: -7552997827385218417,
+      name: r'date',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'date',
+          type: IndexType.value,
+          caseSensitive: false,
+        ),
+      ],
+    ),
+    r'lastUpdateTime': IndexSchema(
+      id: 6922215392961312209,
+      name: r'lastUpdateTime',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'lastUpdateTime',
+          type: IndexType.value,
+          caseSensitive: false,
+        ),
+      ],
+    ),
+  },
   links: {},
   embeddedSchemas: {},
 
-  getId: _stepRecordGetId,
-  getLinks: _stepRecordGetLinks,
-  attach: _stepRecordAttach,
+  getId: _dailyStepRecordGetId,
+  getLinks: _dailyStepRecordGetLinks,
+  attach: _dailyStepRecordAttach,
   version: '3.3.0-dev.3',
 );
 
-int _stepRecordEstimateSize(
-  StepRecord object,
+int _dailyStepRecordEstimateSize(
+  DailyStepRecord object,
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
-  bytesCount += 3 + object.id.length * 3;
   bytesCount += 3 + object.sessionId.length * 3;
   return bytesCount;
 }
 
-void _stepRecordSerialize(
-  StepRecord object,
+void _dailyStepRecordSerialize(
+  DailyStepRecord object,
   IsarWriter writer,
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeLong(offsets[0], object.delta);
-  writer.writeString(offsets[1], object.id);
-  writer.writeString(offsets[2], object.sessionId);
-  writer.writeLong(offsets[3], object.steps);
-  writer.writeBool(offsets[4], object.synced);
-  writer.writeDateTime(offsets[5], object.timestamp);
+  writer.writeDateTime(offsets[0], object.date);
+  writer.writeLong(offsets[1], object.lastKnownSteps);
+  writer.writeDateTime(offsets[2], object.lastUpdateTime);
+  writer.writeString(offsets[3], object.sessionId);
+  writer.writeLong(offsets[4], object.steps);
+  writer.writeBool(offsets[5], object.synced);
 }
 
-StepRecord _stepRecordDeserialize(
+DailyStepRecord _dailyStepRecordDeserialize(
   Id id,
   IsarReader reader,
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  final object = StepRecord(
-    delta: reader.readLong(offsets[0]),
-    id: reader.readString(offsets[1]),
-    sessionId: reader.readString(offsets[2]),
-    steps: reader.readLong(offsets[3]),
-    synced: reader.readBoolOrNull(offsets[4]) ?? false,
-    timestamp: reader.readDateTime(offsets[5]),
+  final object = DailyStepRecord(
+    date: reader.readDateTime(offsets[0]),
+    lastKnownSteps: reader.readLongOrNull(offsets[1]) ?? 0,
+    lastUpdateTime: reader.readDateTime(offsets[2]),
+    sessionId: reader.readString(offsets[3]),
+    steps: reader.readLongOrNull(offsets[4]) ?? 0,
+    synced: reader.readBoolOrNull(offsets[5]) ?? false,
   );
-  object.autoId = id;
+  object.id = id;
   return object;
 }
 
-P _stepRecordDeserializeProp<P>(
+P _dailyStepRecordDeserializeProp<P>(
   IsarReader reader,
   int propertyId,
   int offset,
@@ -99,113 +129,332 @@ P _stepRecordDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readLong(offset)) as P;
-    case 1:
-      return (reader.readString(offset)) as P;
-    case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
-      return (reader.readLong(offset)) as P;
-    case 4:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 5:
       return (reader.readDateTime(offset)) as P;
+    case 1:
+      return (reader.readLongOrNull(offset) ?? 0) as P;
+    case 2:
+      return (reader.readDateTime(offset)) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
+      return (reader.readLongOrNull(offset) ?? 0) as P;
+    case 5:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
 }
 
-Id _stepRecordGetId(StepRecord object) {
-  return object.autoId;
+Id _dailyStepRecordGetId(DailyStepRecord object) {
+  return object.id;
 }
 
-List<IsarLinkBase<dynamic>> _stepRecordGetLinks(StepRecord object) {
+List<IsarLinkBase<dynamic>> _dailyStepRecordGetLinks(DailyStepRecord object) {
   return [];
 }
 
-void _stepRecordAttach(IsarCollection<dynamic> col, Id id, StepRecord object) {
-  object.autoId = id;
+void _dailyStepRecordAttach(
+  IsarCollection<dynamic> col,
+  Id id,
+  DailyStepRecord object,
+) {
+  object.id = id;
 }
 
-extension StepRecordQueryWhereSort
-    on QueryBuilder<StepRecord, StepRecord, QWhere> {
-  QueryBuilder<StepRecord, StepRecord, QAfterWhere> anyAutoId() {
+extension DailyStepRecordQueryWhereSort
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QWhere> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
     });
   }
-}
 
-extension StepRecordQueryWhere
-    on QueryBuilder<StepRecord, StepRecord, QWhereClause> {
-  QueryBuilder<StepRecord, StepRecord, QAfterWhereClause> autoIdEqualTo(
-    Id autoId,
-  ) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhere> anyDate() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
-        IdWhereClause.between(lower: autoId, upper: autoId),
+        const IndexWhereClause.any(indexName: r'date'),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterWhereClause> autoIdNotEqualTo(
-    Id autoId,
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhere>
+  anyLastUpdateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'lastUpdateTime'),
+      );
+    });
+  }
+}
+
+extension DailyStepRecordQueryWhere
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QWhereClause> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause> idEqualTo(
+    Id id,
   ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IdWhereClause.between(lower: id, upper: id));
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  idNotEqualTo(Id id) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
             .addWhereClause(
-              IdWhereClause.lessThan(upper: autoId, includeUpper: false),
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
             )
             .addWhereClause(
-              IdWhereClause.greaterThan(lower: autoId, includeLower: false),
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
             );
       } else {
         return query
             .addWhereClause(
-              IdWhereClause.greaterThan(lower: autoId, includeLower: false),
+              IdWhereClause.greaterThan(lower: id, includeLower: false),
             )
             .addWhereClause(
-              IdWhereClause.lessThan(upper: autoId, includeUpper: false),
+              IdWhereClause.lessThan(upper: id, includeUpper: false),
             );
       }
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterWhereClause> autoIdGreaterThan(
-    Id autoId, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  idGreaterThan(Id id, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
-        IdWhereClause.greaterThan(lower: autoId, includeLower: include),
+        IdWhereClause.greaterThan(lower: id, includeLower: include),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterWhereClause> autoIdLessThan(
-    Id autoId, {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause> idLessThan(
+    Id id, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
-        IdWhereClause.lessThan(upper: autoId, includeUpper: include),
+        IdWhereClause.lessThan(upper: id, includeUpper: include),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterWhereClause> autoIdBetween(
-    Id lowerAutoId,
-    Id upperAutoId, {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause> idBetween(
+    Id lowerId,
+    Id upperId, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         IdWhereClause.between(
-          lower: lowerAutoId,
+          lower: lowerId,
           includeLower: includeLower,
-          upper: upperAutoId,
+          upper: upperId,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause> dateEqualTo(
+    DateTime date,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(indexName: r'date', value: [date]),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  dateNotEqualTo(DateTime date) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'date',
+                lower: [],
+                upper: [date],
+                includeUpper: false,
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'date',
+                lower: [date],
+                includeLower: false,
+                upper: [],
+              ),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'date',
+                lower: [date],
+                includeLower: false,
+                upper: [],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'date',
+                lower: [],
+                upper: [date],
+                includeUpper: false,
+              ),
+            );
+      }
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  dateGreaterThan(DateTime date, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'date',
+          lower: [date],
+          includeLower: include,
+          upper: [],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  dateLessThan(DateTime date, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'date',
+          lower: [],
+          upper: [date],
+          includeUpper: include,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause> dateBetween(
+    DateTime lowerDate,
+    DateTime upperDate, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'date',
+          lower: [lowerDate],
+          includeLower: includeLower,
+          upper: [upperDate],
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  lastUpdateTimeEqualTo(DateTime lastUpdateTime) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.equalTo(
+          indexName: r'lastUpdateTime',
+          value: [lastUpdateTime],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  lastUpdateTimeNotEqualTo(DateTime lastUpdateTime) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'lastUpdateTime',
+                lower: [],
+                upper: [lastUpdateTime],
+                includeUpper: false,
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'lastUpdateTime',
+                lower: [lastUpdateTime],
+                includeLower: false,
+                upper: [],
+              ),
+            );
+      } else {
+        return query
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'lastUpdateTime',
+                lower: [lastUpdateTime],
+                includeLower: false,
+                upper: [],
+              ),
+            )
+            .addWhereClause(
+              IndexWhereClause.between(
+                indexName: r'lastUpdateTime',
+                lower: [],
+                upper: [lastUpdateTime],
+                includeUpper: false,
+              ),
+            );
+      }
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  lastUpdateTimeGreaterThan(DateTime lastUpdateTime, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'lastUpdateTime',
+          lower: [lastUpdateTime],
+          includeLower: include,
+          upper: [],
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  lastUpdateTimeLessThan(DateTime lastUpdateTime, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'lastUpdateTime',
+          lower: [],
+          upper: [lastUpdateTime],
+          includeUpper: include,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterWhereClause>
+  lastUpdateTimeBetween(
+    DateTime lowerLastUpdateTime,
+    DateTime upperLastUpdateTime, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        IndexWhereClause.between(
+          indexName: r'lastUpdateTime',
+          lower: [lowerLastUpdateTime],
+          includeLower: includeLower,
+          upper: [upperLastUpdateTime],
           includeUpper: includeUpper,
         ),
       );
@@ -213,49 +462,100 @@ extension StepRecordQueryWhere
   }
 }
 
-extension StepRecordQueryFilter
-    on QueryBuilder<StepRecord, StepRecord, QFilterCondition> {
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> autoIdEqualTo(
-    Id value,
-  ) {
+extension DailyStepRecordQueryFilter
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QFilterCondition> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  dateEqualTo(DateTime value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'autoId', value: value),
+        FilterCondition.equalTo(property: r'date', value: value),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> autoIdGreaterThan(
-    Id value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  dateGreaterThan(DateTime value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'autoId',
+          property: r'date',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> autoIdLessThan(
-    Id value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  dateLessThan(DateTime value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'autoId',
+          property: r'date',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> autoIdBetween(
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  dateBetween(
+    DateTime lower,
+    DateTime upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'date',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  idEqualTo(Id value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'id', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  idGreaterThan(Id value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'id',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  idLessThan(Id value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'id',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  idBetween(
     Id lower,
     Id upper, {
     bool includeLower = true,
@@ -264,7 +564,7 @@ extension StepRecordQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'autoId',
+          property: r'id',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
@@ -274,47 +574,43 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> deltaEqualTo(
-    int value,
-  ) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastKnownStepsEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'delta', value: value),
+        FilterCondition.equalTo(property: r'lastKnownSteps', value: value),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> deltaGreaterThan(
-    int value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastKnownStepsGreaterThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'delta',
+          property: r'lastKnownSteps',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> deltaLessThan(
-    int value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastKnownStepsLessThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'delta',
+          property: r'lastKnownSteps',
           value: value,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> deltaBetween(
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastKnownStepsBetween(
     int lower,
     int upper, {
     bool includeLower = true,
@@ -323,7 +619,7 @@ extension StepRecordQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'delta',
+          property: r'lastKnownSteps',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
@@ -333,156 +629,63 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeEqualTo(DateTime value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(
-          property: r'id',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
+        FilterCondition.equalTo(property: r'lastUpdateTime', value: value),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idGreaterThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeGreaterThan(DateTime value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'id',
+          property: r'lastUpdateTime',
           value: value,
-          caseSensitive: caseSensitive,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idLessThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeLessThan(DateTime value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'id',
+          property: r'lastUpdateTime',
           value: value,
-          caseSensitive: caseSensitive,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idBetween(
-    String lower,
-    String upper, {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeBetween(
+    DateTime lower,
+    DateTime upper, {
     bool includeLower = true,
     bool includeUpper = true,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'id',
+          property: r'lastUpdateTime',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
           includeUpper: includeUpper,
-          caseSensitive: caseSensitive,
         ),
       );
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.startsWith(
-          property: r'id',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.endsWith(
-          property: r'id',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idContains(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.contains(
-          property: r'id',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idMatches(
-    String pattern, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.matches(
-          property: r'id',
-          wildcard: pattern,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'id', value: ''),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> idIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(property: r'id', value: ''),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(
@@ -494,7 +697,7 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition>
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   sessionIdGreaterThan(
     String value, {
     bool include = false,
@@ -512,7 +715,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdLessThan(
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdLessThan(
     String value, {
     bool include = false,
     bool caseSensitive = true,
@@ -529,7 +733,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdBetween(
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdBetween(
     String lower,
     String upper, {
     bool includeLower = true,
@@ -550,7 +755,7 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition>
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   sessionIdStartsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -563,10 +768,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdEndsWith(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.endsWith(
@@ -578,10 +781,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdContains(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdContains(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.contains(
@@ -593,10 +794,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> sessionIdMatches(
-    String pattern, {
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  sessionIdMatches(String pattern, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.matches(
@@ -608,7 +807,7 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition>
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   sessionIdIsEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -617,7 +816,7 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition>
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   sessionIdIsNotEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -626,9 +825,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> stepsEqualTo(
-    int value,
-  ) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(property: r'steps', value: value),
@@ -636,10 +834,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> stepsGreaterThan(
-    int value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsGreaterThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
@@ -651,10 +847,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> stepsLessThan(
-    int value, {
-    bool include = false,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsLessThan(int value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
@@ -666,7 +860,8 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> stepsBetween(
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsBetween(
     int lower,
     int upper, {
     bool includeLower = true,
@@ -685,326 +880,287 @@ extension StepRecordQueryFilter
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> syncedEqualTo(
-    bool value,
-  ) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  syncedEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(property: r'synced', value: value),
       );
     });
   }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> timestampEqualTo(
-    DateTime value,
-  ) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'timestamp', value: value),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition>
-  timestampGreaterThan(DateTime value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'timestamp',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> timestampLessThan(
-    DateTime value, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'timestamp',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterFilterCondition> timestampBetween(
-    DateTime lower,
-    DateTime upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'timestamp',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-        ),
-      );
-    });
-  }
 }
 
-extension StepRecordQueryObject
-    on QueryBuilder<StepRecord, StepRecord, QFilterCondition> {}
+extension DailyStepRecordQueryObject
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QFilterCondition> {}
 
-extension StepRecordQueryLinks
-    on QueryBuilder<StepRecord, StepRecord, QFilterCondition> {}
+extension DailyStepRecordQueryLinks
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QFilterCondition> {}
 
-extension StepRecordQuerySortBy
-    on QueryBuilder<StepRecord, StepRecord, QSortBy> {
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByDelta() {
+extension DailyStepRecordQuerySortBy
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QSortBy> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> sortByDate() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'delta', Sort.asc);
+      return query.addSortBy(r'date', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByDeltaDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByDateDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'delta', Sort.desc);
+      return query.addSortBy(r'date', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortById() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByLastKnownSteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'id', Sort.asc);
+      return query.addSortBy(r'lastKnownSteps', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByIdDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByLastKnownStepsDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'id', Sort.desc);
+      return query.addSortBy(r'lastKnownSteps', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortBySessionId() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByLastUpdateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastUpdateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByLastUpdateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastUpdateTime', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortBySessionId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sessionId', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortBySessionIdDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortBySessionIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sessionId', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> sortBySteps() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'steps', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByStepsDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByStepsDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'steps', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortBySynced() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> sortBySynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'synced', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortBySyncedDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortBySyncedDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'synced', Sort.desc);
     });
   }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByTimestamp() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'timestamp', Sort.asc);
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> sortByTimestampDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'timestamp', Sort.desc);
-    });
-  }
 }
 
-extension StepRecordQuerySortThenBy
-    on QueryBuilder<StepRecord, StepRecord, QSortThenBy> {
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByAutoId() {
+extension DailyStepRecordQuerySortThenBy
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QSortThenBy> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenByDate() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'autoId', Sort.asc);
+      return query.addSortBy(r'date', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByAutoIdDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByDateDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'autoId', Sort.desc);
+      return query.addSortBy(r'date', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByDelta() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'delta', Sort.asc);
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByDeltaDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'delta', Sort.desc);
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenById() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByIdDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenBySessionId() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByLastKnownSteps() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastKnownSteps', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByLastKnownStepsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastKnownSteps', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByLastUpdateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastUpdateTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByLastUpdateTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'lastUpdateTime', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenBySessionId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sessionId', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenBySessionIdDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenBySessionIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sessionId', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenBySteps() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'steps', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByStepsDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByStepsDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'steps', Sort.desc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenBySynced() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenBySynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'synced', Sort.asc);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenBySyncedDesc() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenBySyncedDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'synced', Sort.desc);
     });
   }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByTimestamp() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'timestamp', Sort.asc);
-    });
-  }
-
-  QueryBuilder<StepRecord, StepRecord, QAfterSortBy> thenByTimestampDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'timestamp', Sort.desc);
-    });
-  }
 }
 
-extension StepRecordQueryWhereDistinct
-    on QueryBuilder<StepRecord, StepRecord, QDistinct> {
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctByDelta() {
+extension DailyStepRecordQueryWhereDistinct
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> distinctByDate() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'delta');
+      return query.addDistinctBy(r'date');
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctById({
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctByLastKnownSteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'id', caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'lastKnownSteps');
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctBySessionId({
-    bool caseSensitive = true,
-  }) {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctByLastUpdateTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'lastUpdateTime');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctBySessionId({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'sessionId', caseSensitive: caseSensitive);
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> distinctBySteps() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'steps');
     });
   }
 
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctBySynced() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> distinctBySynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'synced');
     });
   }
-
-  QueryBuilder<StepRecord, StepRecord, QDistinct> distinctByTimestamp() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'timestamp');
-    });
-  }
 }
 
-extension StepRecordQueryProperty
-    on QueryBuilder<StepRecord, StepRecord, QQueryProperty> {
-  QueryBuilder<StepRecord, int, QQueryOperations> autoIdProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'autoId');
-    });
-  }
-
-  QueryBuilder<StepRecord, int, QQueryOperations> deltaProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'delta');
-    });
-  }
-
-  QueryBuilder<StepRecord, String, QQueryOperations> idProperty() {
+extension DailyStepRecordQueryProperty
+    on QueryBuilder<DailyStepRecord, DailyStepRecord, QQueryProperty> {
+  QueryBuilder<DailyStepRecord, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
     });
   }
 
-  QueryBuilder<StepRecord, String, QQueryOperations> sessionIdProperty() {
+  QueryBuilder<DailyStepRecord, DateTime, QQueryOperations> dateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'date');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, int, QQueryOperations>
+  lastKnownStepsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastKnownSteps');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DateTime, QQueryOperations>
+  lastUpdateTimeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'lastUpdateTime');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, String, QQueryOperations> sessionIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'sessionId');
     });
   }
 
-  QueryBuilder<StepRecord, int, QQueryOperations> stepsProperty() {
+  QueryBuilder<DailyStepRecord, int, QQueryOperations> stepsProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'steps');
     });
   }
 
-  QueryBuilder<StepRecord, bool, QQueryOperations> syncedProperty() {
+  QueryBuilder<DailyStepRecord, bool, QQueryOperations> syncedProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'synced');
-    });
-  }
-
-  QueryBuilder<StepRecord, DateTime, QQueryOperations> timestampProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'timestamp');
     });
   }
 }

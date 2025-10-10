@@ -1,11 +1,17 @@
+import 'package:isar_community/isar.dart';
+
+part 'session.g.dart';
+
+@collection
 class Session {
-  String sessionId;
-  DateTime startTime;
+  Id id = Isar.autoIncrement;
+  late String sessionId;
+  late DateTime startTime;
   DateTime? endTime;
-  int startSteps;
-  int endSteps;
-  int totalSteps; // endSteps - startSteps
-  String endReason; // USER_STOP, REBOOT, DATE_CHANGE, CRASH
+  late int startSteps;
+  late int endSteps;
+  late int totalSteps; // endSteps - startSteps
+  late String endReason; // USER_STOP, REBOOT, DATE_CHANGE, CRASH
 
   Session({
     required this.sessionId,
