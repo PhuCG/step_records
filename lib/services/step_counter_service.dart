@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:uuid/uuid.dart';
@@ -17,9 +16,6 @@ class StepCounterService {
 
   static const String _notificationTitle = 'Step Counter Active';
   static const String _notificationText = 'Counting your steps...';
-
-  StreamSubscription? _stepSubscription;
-  DateTime? _lastResetDate;
   String _currentSessionId = '';
   bool _isServiceRunning = false;
 
@@ -171,9 +167,6 @@ class StepCounterService {
         final newState = AppState(isServiceRunning: true);
         await StorageService.instance.saveAppState(newState);
 
-        // Start step counting
-        await _startStepCounting();
-
         developer.log('SERVICE_STARTED session_id: $_currentSessionId');
       }
 
@@ -191,10 +184,6 @@ class StepCounterService {
         developer.log('SERVICE_NOT_RUNNING');
         return true;
       }
-
-      // Stop step counting
-      await _stepSubscription?.cancel();
-      _stepSubscription = null;
 
       // Stop foreground task
       final result = await FlutterForegroundTask.stopService();
@@ -216,140 +205,6 @@ class StepCounterService {
     }
   }
 
-  Future<void> _startStepCounting() async {
-    try {
-      // Get today's date for daily tracking
-      final today = DateTime.now();
-      final todayDate = DateTime(today.year, today.month, today.day);
-
-      // Check if we need to reset daily counter
-      if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
-        await _resetDailyCounter(todayDate);
-      }
-
-      // Listen to daily step count stream from today
-      if (Platform.isAndroid) {
-        _stepSubscription = Pedometer().stepCountStream().listen(
-          (steps) async {
-            await _handleDailyStepChange(steps, todayDate);
-          },
-          onError: (error) {
-            developer.log(
-              'PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-              level: 1000,
-              error: error,
-            );
-            _handlePedometerError(error);
-          },
-          cancelOnError: false, // Continue on errors
-        );
-      } else {
-        _stepSubscription = Pedometer()
-            .stepCountStreamFrom(from: todayDate)
-            .listen(
-              (steps) async {
-                await _handleDailyStepChange(steps, todayDate);
-              },
-              onError: (error) {
-                developer.log(
-                  'PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-                  level: 1000,
-                  error: error,
-                );
-                _handlePedometerError(error);
-              },
-              cancelOnError: false, // Continue on errors
-            );
-      }
-      developer.log('STEP_COUNTING_STARTED');
-    } catch (e) {
-      developer.log('STEP_COUNTING_ERROR error: $e', level: 1000, error: e);
-    }
-  }
-
-  Future<void> _handleDailyStepChange(int steps, DateTime date) async {
-    try {
-      // Get or create today's record
-      final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
-        date,
-      );
-
-      // Update today's step count
-      final updatedRecord = DailyStepRecord(
-        date: todayRecord.date,
-        steps: steps,
-        lastUpdateTime: DateTime.now(),
-      );
-
-      // Save to Isar with reactive updates
-      await StorageService.instance.addDailyStepRecord(updatedRecord);
-
-      // Update notification every 7 steps to save battery
-      if (updatedRecord.steps % 7 == 0) {
-        await _updateNotification(updatedRecord.steps);
-      }
-
-      // Log the step change
-      developer.log(
-        'DAILY_STEP_CHANGE: steps=$steps || totalSteps=${updatedRecord.steps} || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
-      );
-    } catch (e) {
-      developer.log(
-        'STEP_HANDLE_ERROR error: $e steps: $steps',
-        level: 1000,
-        error: e,
-      );
-    }
-  }
-
-  Future<void> _resetDailyCounter(DateTime todayDate) async {
-    try {
-      _lastResetDate = todayDate;
-
-      // Update app state with new reset date
-      final appState = await StorageService.instance.getAppState();
-      final updatedState = AppState(
-        isServiceRunning: appState.isServiceRunning,
-      );
-      await StorageService.instance.saveAppState(updatedState);
-
-      developer.log(
-        'DAILY_RESET: date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter',
-      );
-    } catch (e) {
-      developer.log('DAILY_RESET_ERROR error: $e', level: 1000, error: e);
-    }
-  }
-
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
-  }
-
-  void _handlePedometerError(dynamic error) {
-    // Handle pedometer errors gracefully
-    developer.log('PEDOMETER_ERROR_HANDLED: $error');
-  }
-
-  Future<void> _updateNotification(int steps) async {
-    try {
-      FlutterForegroundTask.updateService(
-        notificationTitle: 'Step Counter Active',
-        notificationText:
-            '${NumberFormat('#,###').format(steps)} steps today • Last: ${_formatTime(DateTime.now())}',
-      );
-    } catch (e) {
-      developer.log('NOTIFICATION_UPDATE_ERROR error: $e');
-    }
-  }
-
-  String _formatTime(DateTime dateTime) {
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
   bool get isServiceRunning => _isServiceRunning;
   String get currentSessionId => _currentSessionId;
 }
@@ -360,6 +215,9 @@ Future<void> startCallback() async {
 }
 
 class StepCounterTaskHandler extends TaskHandler {
+  StreamSubscription? _stepSubscription;
+  DateTime? _lastResetDate;
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     // Service started - update local state
@@ -367,6 +225,9 @@ class StepCounterTaskHandler extends TaskHandler {
     developer.log(
       'SERVICE_START: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
     );
+
+    // Begin step counting in background isolate
+    await _beginBackgroundStepCounting();
   }
 
   @override
@@ -379,6 +240,9 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
     // Service destroyed - update local state
     await _updateServiceState(false);
+    // Cancel pedometer subscription if active
+    await _stepSubscription?.cancel();
+    _stepSubscription = null;
     developer.log(
       'SERVICE_DESTROY: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
     );
@@ -391,5 +255,104 @@ class StepCounterTaskHandler extends TaskHandler {
     } catch (e) {
       developer.log('SERVICE_STATE_UPDATE_ERROR: $e', level: 1000, error: e);
     }
+  }
+
+  Future<void> _beginBackgroundStepCounting() async {
+    try {
+      final now = DateTime.now();
+      final todayDate = DateTime(now.year, now.month, now.day);
+
+      if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
+        await _resetDailyCounter(todayDate);
+      }
+
+      _stepSubscription = Pedometer().stepCountStream().listen(
+        (steps) async {
+          await _handleDailyStepChange(steps, todayDate);
+        },
+        onError: (error) {
+          developer.log(
+            'PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
+            level: 1000,
+            error: error,
+          );
+        },
+        cancelOnError: false,
+      );
+
+      developer.log('STEP_COUNTING_STARTED_BACKGROUND');
+    } catch (e) {
+      developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
+    }
+  }
+
+  Future<void> _handleDailyStepChange(int steps, DateTime date) async {
+    try {
+      final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
+        date,
+      );
+
+      final updatedRecord = DailyStepRecord(
+        date: todayRecord.date,
+        steps: steps,
+        lastUpdateTime: DateTime.now(),
+      );
+
+      await StorageService.instance.addDailyStepRecord(updatedRecord);
+
+      await _updateNotification(updatedRecord.steps);
+
+      developer.log(
+        'DAILY_STEP_CHANGE_BG: steps=$steps || totalSteps=${updatedRecord.steps} || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
+      );
+    } catch (e) {
+      developer.log(
+        'STEP_HANDLE_ERROR_BG error: $e steps: $steps',
+        level: 1000,
+        error: e,
+      );
+    }
+  }
+
+  Future<void> _resetDailyCounter(DateTime todayDate) async {
+    try {
+      _lastResetDate = todayDate;
+
+      final appState = await StorageService.instance.getAppState();
+      final updatedState = AppState(
+        isServiceRunning: appState.isServiceRunning,
+      );
+      await StorageService.instance.saveAppState(updatedState);
+
+      developer.log(
+        'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter',
+      );
+    } catch (e) {
+      developer.log('DAILY_RESET_ERROR_BG error: $e', level: 1000, error: e);
+    }
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  Future<void> _updateNotification(int steps) async {
+    try {
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'Step Counter Active',
+        notificationText:
+            '${NumberFormat('#,###').format(steps)} steps today • Last: ${_formatTime(DateTime.now())}',
+      );
+    } catch (e) {
+      developer.log('NOTIFICATION_UPDATE_ERROR_BG error: $e');
+    }
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 }
