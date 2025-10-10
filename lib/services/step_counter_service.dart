@@ -221,6 +221,7 @@ class StepCounterTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     // Service started - update local state
+    developer.log('SERVICE_START: name: $starter');
     await _updateServiceState(true);
     developer.log(
       'SERVICE_START: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
@@ -291,7 +292,7 @@ class StepCounterTaskHandler extends TaskHandler {
       final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
         date,
       );
-
+      developer.log('EXISTING_RECORD: steps=${todayRecord.steps}');
       final updatedRecord = DailyStepRecord(
         date: todayRecord.date,
         steps: steps,
