@@ -8,7 +8,7 @@
 **Last Updated:** October 9, 2025
 
 ### Purpose
-Develop a proof-of-concept mobile application that counts user steps continuously, even when the app is closed or killed, and logs all activity data locally for analysis.
+Develop a proof-of-concept mobile application that counts user steps continuously when the app is in foreground or background, and logs all activity data locally for analysis. The app uses foreground service to maintain step counting even when the main app is not visible, but may stop when the app is force-killed by the user.
 
 ---
 
@@ -19,16 +19,17 @@ Develop a proof-of-concept mobile application that counts user steps continuousl
 dependencies:
   flutter_foreground_task: ^8.0.0+
   pedometer_2: ^5.0.4
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
+  isar_community: ^3.3.0-dev.3
+  isar_community_flutter_libs: ^3.3.0-dev.3
   path_provider: ^2.1.0
   permission_handler: ^11.0.0
   connectivity_plus: ^5.0.0
   device_info_plus: ^9.1.0
   intl: ^0.18.0
+  uuid: ^4.4.0
 
 dev_dependencies:
-  hive_generator: ^2.0.0
+  isar_community_generator: ^3.3.0-dev.3
   build_runner: ^2.4.0
 ```
 
@@ -44,19 +45,23 @@ dev_dependencies:
 
 ### FR-001: Continuous Step Counting
 **Priority:** CRITICAL  
-**Description:** The application must count user steps continuously, 24/7
+**Description:** The application must count user steps continuously when possible using foreground service
 
 **Acceptance Criteria:**
-- ✅ Steps are counted when app is in foreground
-- ✅ Steps are counted when app is in background
-- ✅ Steps are counted when app is closed/killed by user
-- ✅ Step counting resumes after phone reboot
+- ✅ Daily steps are counted when app is in foreground
+- ✅ Daily steps are counted when app is in background (via foreground service)
+- ✅ Daily step counting resumes after phone reboot (if service auto-starts)
+- ✅ Daily step count resets at midnight (00:00)
 - ✅ Step count accuracy within ±5% of system pedometer
+- ✅ UI updates reactively when step count changes
+- ⚠️ Service may stop when app is force-killed by user (OS limitation)
 
 **Implementation:**
 - Use `flutter_foreground_task` to maintain persistent service
-- Use `pedometer_2` for step detection via Sensors API
+- Use `pedometer_2` with `stepCountStreamFrom()` for daily step tracking
+- Use `isar_community` for reactive database updates
 - Configure service with `autoRunOnBoot: true`
+- Implement daily reset logic at midnight
 
 ---
 
@@ -65,28 +70,18 @@ dev_dependencies:
 **Description:** All step data and events must be logged locally to device storage
 
 **Acceptance Criteria:**
-- ✅ Each step change is logged with timestamp
+- ✅ Each daily step change is logged with timestamp
 - ✅ Service lifecycle events are logged (start, stop, restart)
-- ✅ System events are logged (boot, network change)
+- ✅ System events are logged (boot, network change, daily reset)
 - ✅ Error events are logged with stack traces
-- ✅ Logs are persisted across app sessions
-- ✅ Logs can be exported to external file
+- ✅ Database changes trigger reactive UI updates
 
-**Log Data Structure:**
-```json
-{
-  "log_id": "uuid-v4",
-  "timestamp": "2025-10-09T10:30:45.123Z",
-  "log_level": "INFO|DEBUG|WARN|ERROR",
-  "event_type": "STEP_CHANGE|SERVICE_START|SERVICE_STOP|ERROR",
-  "data": {
-    "steps": 1234,
-    "delta": 10,
-    "session_id": "session-abc",
-    "device_info": {},
-    "additional_context": {}
-  }
-}
+**Log Format:**
+```
+SERVICE_START: timestamp=2025-10-09T10:30:45.123Z || name: StepCounter
+DAILY_STEP_CHANGE: steps=1234 || delta=10 || date=2025-10-09 || name: StepCounter
+PEDOMETER_ERROR: Sensor not available || timestamp=2025-10-09T10:30:45.123Z || name: StepCounter
+SERVICE_AUTO_RESTART: reason=force_kill_detected || timestamp=2025-10-09T10:30:45.123Z || name: StepCounter
 ```
 
 ---
@@ -127,7 +122,7 @@ dev_dependencies:
 - Must show last update timestamp
 - Must have action buttons (optional: Pause/Resume, Stop)
 - Must be non-dismissible (Android)
-- Updates every 10 steps (to save battery)
+- Updates every 7 steps (to save battery)
 
 **Notification Content:**
 ```
@@ -145,84 +140,162 @@ Actions: [Pause] [Stop Service]
 
 **Storage Structure:**
 
-**Step Records Table:**
+**Daily Step Records Table:**
 ```dart
-@HiveType(typeId: 0)
-class StepRecord {
-  @HiveField(0) String id;
-  @HiveField(1) int steps;
-  @HiveField(2) int delta;
-  @HiveField(3) DateTime timestamp;
-  @HiveField(4) String sessionId;
-  @HiveField(5) bool synced; // For future server sync
-}
-```
-
-**Log Records Table:**
-```dart
-@HiveType(typeId: 1)
-class LogRecord {
-  @HiveField(0) String id;
-  @HiveField(1) DateTime timestamp;
-  @HiveField(2) String level;
-  @HiveField(3) String eventType;
-  @HiveField(4) Map<String, dynamic> data;
+@collection
+class DailyStepRecord {
+  Id id = Isar.autoIncrement;
+  @Index()
+  late DateTime date; // YYYY-MM-DD format for daily tracking
+  late int steps; // Steps for this specific day
+  late int lastKnownSteps; // Last known step count from pedometer
+  @Index()
+  late DateTime lastUpdateTime;
+  late String sessionId;
+  late bool synced; // For future server sync
 }
 ```
 
 **App State:**
 ```dart
-@HiveType(typeId: 2)
+@collection
 class AppState {
-  @HiveField(0) DateTime? serviceStartTime;
-  @HiveField(1) int lastKnownSteps;
-  @HiveField(2) String currentSessionId;
-  @HiveField(3) bool isServiceRunning;
-  @HiveField(4) DateTime? lastUpdateTime;
+  Id id = Isar.autoIncrement;
+  DateTime? serviceStartTime;
+  @Index()
+  late String currentSessionId;
+  late bool isServiceRunning;
+  DateTime? lastUpdateTime;
+  late DateTime lastDateReset; // Track when we last reset daily counter
 }
 ```
 
 **Data Retention:**
-- Step records: Keep last 30 days
-- Log records: Keep last 7 days
-- Auto-cleanup on app start
-- Export capability before cleanup
+- Daily reset at midnight (00:00) to start fresh count
 
 ---
 
-### FR-006: Log Export Functionality
+### FR-006: Service State Synchronization
 **Priority:** HIGH  
-**Description:** Export all logs to readable file format
+**Description:** Ensure service state accuracy between foreground service and local database
 
-**Export Formats:**
-1. **JSON** (Structured data)
-2. **CSV** (For Excel analysis)
-3. **TXT** (Human-readable)
+**Problem Statement:**
+When user kills the app, the foreground service may still be running but `isServiceRunning` in local database remains `true`, causing UI to show incorrect status.
 
-**Export Content:**
-- All step records within date range
-- All log entries within date range
-- App state snapshots
-- Device information
-- Session summaries
+**Solution Strategy:**
+1. **TaskHandler Lifecycle:** Use `onStart` and `onDestroy` callbacks for service state management
+2. **State Validation:** App startup checks actual service status vs local state
+3. **Auto-Correction:** Automatically sync local state with actual service status
 
-**Export File Naming:**
+**Implementation:**
+```dart
+import 'dart:developer' as developer;
+
+// TaskHandler implementation
+class StepCounterTaskHandler extends TaskHandler {
+  @override
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
+    // Service started - update local state
+    await _updateServiceState(true);
+    developer.log('SERVICE_START: timestamp=${timestamp.toIso8601String()} || name: StepCounter');
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
+    // Service destroyed - update local state
+    await _updateServiceState(false);
+    developer.log('SERVICE_DESTROY: timestamp=${timestamp.toIso8601String()} || name: StepCounter');
+  }
+
+  Future<void> _updateServiceState(bool isRunning) async {
+    await _isar.writeTxn(() async {
+      final appState = await _isar.appStates.get(0);
+      if (appState != null) {
+        appState.isServiceRunning = isRunning;
+        appState.lastUpdateTime = DateTime.now();
+        if (isRunning) {
+          appState.serviceStartTime = DateTime.now();
+          appState.currentSessionId = Uuid().v4();
+        } else {
+          appState.serviceStartTime = null;
+          appState.currentSessionId = '';
+        }
+        await _isar.appStates.put(appState);
+      }
+    });
+  }
+}
+
+// App startup validation - check if service is actually running
+Future<void> validateServiceState() async {
+  // Check if FlutterForegroundTask service is actually running
+  final isServiceRunning = await FlutterForegroundTask.isRunningService;
+  
+  // Get current local state
+  final appState = await _isar.appStates.get(0);
+  if (appState == null) return;
+  
+  // Sync local state with actual service status
+  if (appState.isServiceRunning != isServiceRunning) {
+    await _isar.writeTxn(() async {
+      appState.isServiceRunning = isServiceRunning;
+      appState.lastUpdateTime = DateTime.now();
+      if (!isServiceRunning) {
+        appState.serviceStartTime = null;
+        appState.currentSessionId = '';
+      }
+      await _isar.appStates.put(appState);
+    });
+    
+    developer.log('SERVICE_STATE_SYNC: localState=${appState.isServiceRunning} || actualState=$isServiceRunning || name: StepCounter');
+    
+    // If local state says service should be running but it's not,
+    // it means user force-killed the app - auto-restart service
+    if (appState.isServiceRunning && !isServiceRunning) {
+      await _autoRestartService();
+    }
+  }
+}
+
+// Auto-restart service when user force-killed the app
+Future<void> _autoRestartService() async {
+  try {
+    // Check if we have necessary permissions
+    final hasPermissions = await _checkAllPermissions();
+    if (!hasPermissions) {
+      // Show notification asking user to grant permissions
+      await _showPermissionRequiredNotification();
+      developer.log('SERVICE_AUTO_RESTART_FAILED: reason=permissions_denied || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter');
+      return;
+    }
+    
+    // Start the service again
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'Step Counter Active',
+      notificationText: 'Service restarted after app was killed',
+      callback: startCallback,
+    );
+    
+    // Log the auto-restart event
+    developer.log('SERVICE_AUTO_RESTART: reason=force_kill_detected || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter');
+    
+  } catch (e) {
+    // If auto-restart fails, show notification to user
+    await _showServiceRestartFailedNotification();
+    developer.log('SERVICE_AUTO_RESTART_FAILED: error=${e.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter', level: 1000, error: e);
+  }
+}
 ```
-step_counter_logs_YYYYMMDD_HHmmss.{json|csv|txt}
-```
-
-**Export Location:**
-- Android: `/storage/emulated/0/Download/StepCounterLogs/`
-- iOS: App's Documents directory (accessible via Files app)
 
 **Acceptance Criteria:**
-- ✅ Export initiated from UI
-- ✅ User can select date range
-- ✅ User can select export format
-- ✅ Export includes all relevant data
-- ✅ File is saved to accessible location
-- ✅ User notified of export completion with file path
-- ✅ Option to share exported file
+- ✅ TaskHandler `onStart` updates service state to running
+- ✅ TaskHandler `onDestroy` updates service state to stopped
+- ✅ App validates service state on startup using `FlutterForegroundTask.isRunningService`
+- ✅ Local state automatically syncs with actual service status
+- ✅ Auto-restart service when force-kill is detected
+- ✅ UI shows correct service status after app restart
+- ✅ Handles both normal shutdown and force kill scenarios
+- ✅ User doesn't need to manually restart service after force-kill
 
 ---
 
@@ -282,50 +355,25 @@ class Session {
    - Continue counting but stop logging
 
 5. **Corrupted Database:**
-   - Catch Hive exceptions
+   - Catch Isar exceptions
    - Backup current data
    - Reset database
    - Log incident
    - Notify user
 
----
+6. **Service State Mismatch:**
+   - Detect when local state doesn't match actual service status
+   - Auto-correct state on app startup
+   - Auto-restart service if force-kill is detected
+   - Log state synchronization events
+   - Show user notification if manual intervention needed
 
-## Non-Functional Requirements
-
-### NFR-001: Performance
-- App launch time: < 2 seconds
-- Service start time: < 3 seconds
-- Database query time: < 100ms
-- Log write time: < 50ms
-- Notification update: < 200ms
-- Memory usage: < 150MB (service)
-- Step detection latency: < 2 seconds
-
-### NFR-002: Battery Consumption
-- Target: < 3% battery per day
-- Optimize notification updates (batch every 10 steps)
-- Minimize wake locks
-- Use efficient database operations
-- Debounce rapid step changes
-
-### NFR-003: Reliability
-- Service uptime: > 95% (excluding user manual stops)
-- Data integrity: 100% (no lost records)
-- Crash rate: < 0.1%
-- Auto-recovery on errors: 100%
-
-### NFR-004: Compatibility
-- Android: 10.0 (API 29) and above
-- iOS: 13.0 and above
-- Device requirement: Built-in step sensor
-- Screen sizes: All (responsive design)
-
-### NFR-005: Data Storage
-- Step records: Max 10,000 entries
-- Log records: Max 50,000 entries
-- Auto-cleanup: Daily at 3:00 AM
-- Storage size: < 50MB
-- Database backup: Before cleanup
+7. **Force Kill Recovery:**
+   - Detect when user force-killed the app (local state = true, actual = false)
+   - Automatically restart service without user intervention
+   - Check permissions before auto-restart
+   - Show notification if auto-restart fails
+   - Log auto-restart events for debugging
 
 ---
 
@@ -342,26 +390,14 @@ class Session {
 │                             │
 │   Last updated: 10:30 AM    │
 │                             │
-│  ┌─────────────────────┐   │
-│  │  [Start Tracking]   │   │
-│  └─────────────────────┘   │
+│  ┌─────────────────────┐    │
+│  │  [Start Tracking]   │    │
+│  └─────────────────────┘    │
 │                             │
 │  Session: 2h 15m            │
 │  Service: ● Active          │
-│                             │
 ├─────────────────────────────┤
-│  📊 Today's Activity        │
-│  ┌─────────────────────┐   │
-│  │  [Graph/Chart]      │   │
-│  └─────────────────────┘   │
-├─────────────────────────────┤
-│  📁 Logs & Data             │
-│  • Total records: 1,234     │
-│  • Last export: 2 days ago  │
-│  ┌─────────────────────┐   │
-│  │  [Export Logs]      │   │
-│  └─────────────────────┘   │
-└─────────────────────────────┘
+
 ```
 
 ### Settings Screen
@@ -369,31 +405,7 @@ class Session {
 - Battery optimization status
 - Service auto-start toggle
 - Data retention settings
-- Export settings
 - About & Debug info
-
-### Export Dialog
-```
-┌─────────────────────────────┐
-│  Export Logs                │
-├─────────────────────────────┤
-│  Date Range:                │
-│  [From: ___] [To: ___]      │
-│                             │
-│  Format:                    │
-│  ○ JSON                     │
-│  ○ CSV                      │
-│  ○ TXT                      │
-│                             │
-│  Include:                   │
-│  ☑ Step records             │
-│  ☑ Log entries              │
-│  ☑ Session summaries        │
-│  ☑ Device info              │
-│                             │
-│  [Cancel]  [Export]         │
-└─────────────────────────────┘
-```
 
 ---
 
@@ -418,76 +430,98 @@ FlutterForegroundTask.init(
 );
 ```
 
-### Pedometer Stream Handling
+### Daily Step Stream Handling
 ```dart
+import 'dart:developer' as developer;
+
 StreamSubscription? _stepSubscription;
+DateTime? _lastResetDate;
 
 void startListening() {
-  _stepSubscription = Pedometer().stepCountStream().listen(
+  // Get today's date for daily tracking
+  final today = DateTime.now();
+  final todayDate = DateTime(today.year, today.month, today.day);
+  
+  // Check if we need to reset daily counter
+  if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
+    await _resetDailyCounter(todayDate);
+  }
+  
+  // Listen to daily step count stream from today
+  _stepSubscription = Pedometer().stepCountStreamFrom(todayDate).listen(
     (steps) async {
-      await _handleStepChange(steps);
+      await _handleDailyStepChange(steps, todayDate);
     },
     onError: (error) {
-      _logError('PEDOMETER_ERROR', error);
+      developer.log('PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter', level: 1000, error: error);
       _handlePedometerError(error);
     },
     cancelOnError: false, // Continue on errors
   );
 }
-```
 
-### Logging Strategy
-```dart
-enum LogLevel { DEBUG, INFO, WARN, ERROR }
-
-class Logger {
-  static Future<void> log(
-    LogLevel level,
-    String eventType,
-    Map<String, dynamic> data,
-  ) async {
-    final record = LogRecord(
-      id: Uuid().v4(),
-      timestamp: DateTime.now(),
-      level: level.name,
-      eventType: eventType,
-      data: data,
-    );
+Future<void> _handleDailyStepChange(int steps, DateTime date) async {
+  // Get or create today's record
+  final todayRecord = await _getOrCreateDailyRecord(date);
+  
+  // Calculate delta from last known steps
+  final delta = steps - todayRecord.lastKnownSteps;
+  
+  if (delta > 0) {
+    // Update today's step count
+    todayRecord.steps += delta;
+    todayRecord.lastKnownSteps = steps;
+    todayRecord.lastUpdateTime = DateTime.now();
     
-    await _logsBox.add(record);
+    // Save to Isar with reactive updates
+    await _isar.writeTxn(() async {
+      await _isar.dailyStepRecords.put(todayRecord);
+    });
     
-    // Also print to console in debug mode
-    if (kDebugMode) {
-      print('[${level.name}] $eventType: $data');
-    }
+    // Log the step change
+    developer.log('DAILY_STEP_CHANGE: steps=$steps || delta=$delta || date=${date.toIso8601String().split('T')[0]} || name: StepCounter');
   }
 }
 ```
 
-### Export Implementation
+
+```
+
+### Isar Reactive UI Updates
 ```dart
-class ExportService {
-  Future<File> exportToJson(DateTime from, DateTime to) async {
-    final steps = await _getStepRecords(from, to);
-    final logs = await _getLogRecords(from, to);
-    
-    final data = {
-      'export_date': DateTime.now().toIso8601String(),
-      'date_range': {
-        'from': from.toIso8601String(),
-        'to': to.toIso8601String(),
-      },
-      'device_info': await _getDeviceInfo(),
-      'step_records': steps.map((e) => e.toJson()).toList(),
-      'log_records': logs.map((e) => e.toJson()).toList(),
-      'summary': _generateSummary(steps),
-    };
-    
-    final json = JsonEncoder.withIndent('  ').convert(data);
-    return await _writeToFile('json', json);
-  }
+// Watch daily step records for UI updates
+Stream<List<DailyStepRecord>> watchTodaySteps() {
+  final today = DateTime.now();
+  final todayDate = DateTime(today.year, today.month, today.day);
+  
+  return _isar.dailyStepRecords
+      .filter()
+      .dateEqualTo(todayDate)
+      .watch(fireImmediately: true);
+}
+
+// Watch app state changes
+Stream<AppState?> watchAppState() {
+  return _isar.appStates
+      .filter()
+      .idEqualTo(0) // Single app state record
+      .watch(fireImmediately: true);
+}
+
+// Get today's step count
+Future<int> getTodayStepCount() async {
+  final today = DateTime.now();
+  final todayDate = DateTime(today.year, today.month, today.day);
+  
+  final record = await _isar.dailyStepRecords
+      .filter()
+      .dateEqualTo(todayDate)
+      .findFirst();
+  
+  return record?.steps ?? 0;
 }
 ```
+
 
 ---
 
@@ -497,16 +531,16 @@ class ExportService {
 - [ ] Pedometer stream handling
 - [ ] Database CRUD operations
 - [ ] Log formatting
-- [ ] Export file generation
 - [ ] Permission checking
 - [ ] Session management
+- [ ] Service state synchronization
 
 ### Integration Tests
 - [ ] Service start/stop flow
 - [ ] Step counting accuracy
 - [ ] Data persistence after restart
-- [ ] Export complete workflow
 - [ ] Error recovery scenarios
+- [ ] Service state sync after app kill
 
 ### Manual Testing Scenarios
 1. **Happy Path:**
@@ -521,13 +555,18 @@ class ExportService {
 4. **Phone Reboot:**
    - Start service → Reboot phone → Verify service auto-started
 
-5. **Export:**
-   - Generate 1 day of data → Export to JSON → Verify file contents
-
-6. **Battery Saver:**
+5. **Battery Saver:**
    - Enable battery saver → Verify service still running
 
-7. **OEM Testing:**
+6. **Service State Sync:**
+   - Start service → Kill app → Wait 2 minutes → Open app → Verify state corrected
+
+7. **Auto-Restart After Force Kill:**
+   - Start service → Force kill app → Open app → Verify service auto-restarted
+   - Verify notification shows "Service restarted after app was killed"
+   - Verify step counting continues seamlessly
+
+8. **OEM Testing:**
    - Test on Xiaomi, Samsung, Huawei devices
 
 ---
@@ -544,15 +583,20 @@ class ExportService {
    - Step counting may be less reliable on iOS
    - Consider using HealthKit for iOS in production
 
-3. **Sensor Availability:**
+3. **Force Kill Limitations:**
+   - When user force-kills the app, foreground service may also stop
+   - This is an OS limitation, not a bug in the application
+   - Service will restart when user opens the app again
+
+4. **Sensor Availability:**
    - Some devices may not have step counter sensor
    - Older devices may have less accurate sensors
 
-4. **Battery Impact:**
+5. **Battery Impact:**
    - Continuous service will consume battery
    - Impact varies by device and usage
 
-5. **Storage Limitation:**
+6. **Storage Limitation:**
    - Local storage only (no unlimited cloud)
    - Auto-cleanup required to prevent storage full
 
@@ -564,21 +608,8 @@ class ExportService {
 - ✅ Service runs for 24+ hours without manual restart
 - ✅ Step count accuracy within 95%
 - ✅ No data loss after phone reboot
-- ✅ Export generates valid files
 - ✅ App handles all error scenarios gracefully
 - ✅ Battery consumption < 5% per day
-
----
-
-## Project Timeline (Estimated)
-
-- **Week 1:** Setup + Permissions + Basic UI
-- **Week 2:** Foreground Service + Pedometer Integration
-- **Week 3:** Local Storage + Logging
-- **Week 4:** Export Functionality + Testing
-- **Week 5:** Bug Fixes + Polish + Documentation
-
-**Total:** 5 weeks for demo version
-
----
+- ✅ Auto-restart works after force-kill (no user intervention needed)
+- ✅ Seamless user experience even after force-kill
 
