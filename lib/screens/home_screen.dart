@@ -5,7 +5,6 @@ import '../services/storage_service.dart';
 import '../services/permission_service.dart';
 import '../models/app_state.dart';
 import '../models/step_record.dart';
-import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,9 +24,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _initializeApp();
     // Subscribe to app state changes via database watcher for live UI updates
-    StorageService.instance.watchAppStateLazy().listen((_) async {
-      final appState = await StorageService.instance.getAppState();
-      if (mounted) {
+    StorageService.instance.watchAppState().listen((appState) async {
+      if (mounted && appState != null) {
         setState(() {
           _appState = appState;
         });
@@ -36,10 +34,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // Subscribe to today's step changes
     StorageService.instance.watchTodaySteps().listen((records) {
-      if (mounted && records.isNotEmpty) {
-        setState(() {
-          _todayRecord = records.first;
-        });
+      if (mounted) {
+        if (records.isNotEmpty) {
+          setState(() {
+            _todayRecord = records.first;
+          });
+        } else {}
       }
     });
   }
@@ -150,20 +150,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return NumberFormat('#,###').format(steps);
   }
 
-  String _formatDuration(DateTime? startTime) {
-    if (startTime == null) return '0m';
-
-    final duration = DateTime.now().difference(startTime);
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
-  }
-
   String _formatLastUpdate(DateTime? lastUpdate) {
     if (lastUpdate == null) return 'Never';
 
@@ -193,18 +179,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('Step Counter'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-              await _refreshAppState();
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -279,6 +253,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
             const SizedBox(height: 24),
 
+            const SizedBox(height: 24),
+
             // Status information
             Card(
               child: Padding(
@@ -293,14 +269,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Duration:'),
-                        Text(_formatDuration(_appState.serviceStartTime)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -327,19 +295,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ],
                     ),
-                    if (_appState.currentSessionId.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Session:'),
-                          Text(
-                            _appState.currentSessionId.substring(0, 8),
-                            style: const TextStyle(fontFamily: 'monospace'),
-                          ),
-                        ],
-                      ),
-                    ],
                   ],
                 ),
               ),

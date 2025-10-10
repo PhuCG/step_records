@@ -17,30 +17,10 @@ const AppStateSchema = CollectionSchema(
   name: r'AppState',
   id: 7189399113359544372,
   properties: {
-    r'currentSessionId': PropertySchema(
-      id: 0,
-      name: r'currentSessionId',
-      type: IsarType.string,
-    ),
     r'isServiceRunning': PropertySchema(
-      id: 1,
+      id: 0,
       name: r'isServiceRunning',
       type: IsarType.bool,
-    ),
-    r'lastDateReset': PropertySchema(
-      id: 2,
-      name: r'lastDateReset',
-      type: IsarType.dateTime,
-    ),
-    r'lastUpdateTime': PropertySchema(
-      id: 3,
-      name: r'lastUpdateTime',
-      type: IsarType.dateTime,
-    ),
-    r'serviceStartTime': PropertySchema(
-      id: 4,
-      name: r'serviceStartTime',
-      type: IsarType.dateTime,
     ),
   },
 
@@ -49,21 +29,7 @@ const AppStateSchema = CollectionSchema(
   deserialize: _appStateDeserialize,
   deserializeProp: _appStateDeserializeProp,
   idName: r'id',
-  indexes: {
-    r'currentSessionId': IndexSchema(
-      id: -7457123740971763574,
-      name: r'currentSessionId',
-      unique: false,
-      replace: false,
-      properties: [
-        IndexPropertySchema(
-          name: r'currentSessionId',
-          type: IndexType.hash,
-          caseSensitive: true,
-        ),
-      ],
-    ),
-  },
+  indexes: {},
   links: {},
   embeddedSchemas: {},
 
@@ -79,7 +45,6 @@ int _appStateEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
-  bytesCount += 3 + object.currentSessionId.length * 3;
   return bytesCount;
 }
 
@@ -89,11 +54,7 @@ void _appStateSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.currentSessionId);
-  writer.writeBool(offsets[1], object.isServiceRunning);
-  writer.writeDateTime(offsets[2], object.lastDateReset);
-  writer.writeDateTime(offsets[3], object.lastUpdateTime);
-  writer.writeDateTime(offsets[4], object.serviceStartTime);
+  writer.writeBool(offsets[0], object.isServiceRunning);
 }
 
 AppState _appStateDeserialize(
@@ -103,11 +64,7 @@ AppState _appStateDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = AppState(
-    currentSessionId: reader.readStringOrNull(offsets[0]) ?? '',
-    isServiceRunning: reader.readBoolOrNull(offsets[1]) ?? false,
-    lastDateReset: reader.readDateTimeOrNull(offsets[2]),
-    lastUpdateTime: reader.readDateTimeOrNull(offsets[3]),
-    serviceStartTime: reader.readDateTimeOrNull(offsets[4]),
+    isServiceRunning: reader.readBoolOrNull(offsets[0]) ?? false,
   );
   object.id = id;
   return object;
@@ -121,15 +78,7 @@ P _appStateDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 1:
       return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 2:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 3:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 4:
-      return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -223,207 +172,10 @@ extension AppStateQueryWhere on QueryBuilder<AppState, AppState, QWhereClause> {
       );
     });
   }
-
-  QueryBuilder<AppState, AppState, QAfterWhereClause> currentSessionIdEqualTo(
-    String currentSessionId,
-  ) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(
-        IndexWhereClause.equalTo(
-          indexName: r'currentSessionId',
-          value: [currentSessionId],
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterWhereClause>
-  currentSessionIdNotEqualTo(String currentSessionId) {
-    return QueryBuilder.apply(this, (query) {
-      if (query.whereSort == Sort.asc) {
-        return query
-            .addWhereClause(
-              IndexWhereClause.between(
-                indexName: r'currentSessionId',
-                lower: [],
-                upper: [currentSessionId],
-                includeUpper: false,
-              ),
-            )
-            .addWhereClause(
-              IndexWhereClause.between(
-                indexName: r'currentSessionId',
-                lower: [currentSessionId],
-                includeLower: false,
-                upper: [],
-              ),
-            );
-      } else {
-        return query
-            .addWhereClause(
-              IndexWhereClause.between(
-                indexName: r'currentSessionId',
-                lower: [currentSessionId],
-                includeLower: false,
-                upper: [],
-              ),
-            )
-            .addWhereClause(
-              IndexWhereClause.between(
-                indexName: r'currentSessionId',
-                lower: [],
-                upper: [currentSessionId],
-                includeUpper: false,
-              ),
-            );
-      }
-    });
-  }
 }
 
 extension AppStateQueryFilter
     on QueryBuilder<AppState, AppState, QFilterCondition> {
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdEqualTo(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdGreaterThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdLessThan(
-    String value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdBetween(
-    String lower,
-    String upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'currentSessionId',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdStartsWith(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.startsWith(
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdEndsWith(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.endsWith(
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.contains(
-          property: r'currentSessionId',
-          value: value,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.matches(
-          property: r'currentSessionId',
-          wildcard: pattern,
-          caseSensitive: caseSensitive,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'currentSessionId', value: ''),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  currentSessionIdIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(property: r'currentSessionId', value: ''),
-      );
-    });
-  }
-
   QueryBuilder<AppState, AppState, QAfterFilterCondition> idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -489,227 +241,6 @@ extension AppStateQueryFilter
       );
     });
   }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastDateResetIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNull(property: r'lastDateReset'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastDateResetIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNotNull(property: r'lastDateReset'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetEqualTo(
-    DateTime? value,
-  ) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'lastDateReset', value: value),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastDateResetGreaterThan(DateTime? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'lastDateReset',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetLessThan(
-    DateTime? value, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'lastDateReset',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastDateResetBetween(
-    DateTime? lower,
-    DateTime? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'lastDateReset',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastUpdateTimeIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNull(property: r'lastUpdateTime'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastUpdateTimeIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNotNull(property: r'lastUpdateTime'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastUpdateTimeEqualTo(
-    DateTime? value,
-  ) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'lastUpdateTime', value: value),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastUpdateTimeGreaterThan(DateTime? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'lastUpdateTime',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  lastUpdateTimeLessThan(DateTime? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'lastUpdateTime',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition> lastUpdateTimeBetween(
-    DateTime? lower,
-    DateTime? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'lastUpdateTime',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNull(property: r'serviceStartTime'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNotNull(property: r'serviceStartTime'),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeEqualTo(DateTime? value) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'serviceStartTime', value: value),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeGreaterThan(DateTime? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'serviceStartTime',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeLessThan(DateTime? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'serviceStartTime',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterFilterCondition>
-  serviceStartTimeBetween(
-    DateTime? lower,
-    DateTime? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'serviceStartTime',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-        ),
-      );
-    });
-  }
 }
 
 extension AppStateQueryObject
@@ -719,18 +250,6 @@ extension AppStateQueryLinks
     on QueryBuilder<AppState, AppState, QFilterCondition> {}
 
 extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByCurrentSessionId() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'currentSessionId', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByCurrentSessionIdDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'currentSessionId', Sort.desc);
-    });
-  }
-
   QueryBuilder<AppState, AppState, QAfterSortBy> sortByIsServiceRunning() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isServiceRunning', Sort.asc);
@@ -742,58 +261,10 @@ extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
       return query.addSortBy(r'isServiceRunning', Sort.desc);
     });
   }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastDateReset() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastDateReset', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastDateResetDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastDateReset', Sort.desc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastUpdateTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastUpdateTime', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByLastUpdateTimeDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastUpdateTime', Sort.desc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByServiceStartTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'serviceStartTime', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> sortByServiceStartTimeDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'serviceStartTime', Sort.desc);
-    });
-  }
 }
 
 extension AppStateQuerySortThenBy
     on QueryBuilder<AppState, AppState, QSortThenBy> {
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByCurrentSessionId() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'currentSessionId', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByCurrentSessionIdDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'currentSessionId', Sort.desc);
-    });
-  }
-
   QueryBuilder<AppState, AppState, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -817,78 +288,13 @@ extension AppStateQuerySortThenBy
       return query.addSortBy(r'isServiceRunning', Sort.desc);
     });
   }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastDateReset() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastDateReset', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastDateResetDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastDateReset', Sort.desc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastUpdateTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastUpdateTime', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByLastUpdateTimeDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'lastUpdateTime', Sort.desc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByServiceStartTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'serviceStartTime', Sort.asc);
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QAfterSortBy> thenByServiceStartTimeDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'serviceStartTime', Sort.desc);
-    });
-  }
 }
 
 extension AppStateQueryWhereDistinct
     on QueryBuilder<AppState, AppState, QDistinct> {
-  QueryBuilder<AppState, AppState, QDistinct> distinctByCurrentSessionId({
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(
-        r'currentSessionId',
-        caseSensitive: caseSensitive,
-      );
-    });
-  }
-
   QueryBuilder<AppState, AppState, QDistinct> distinctByIsServiceRunning() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isServiceRunning');
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QDistinct> distinctByLastDateReset() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'lastDateReset');
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QDistinct> distinctByLastUpdateTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'lastUpdateTime');
-    });
-  }
-
-  QueryBuilder<AppState, AppState, QDistinct> distinctByServiceStartTime() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'serviceStartTime');
     });
   }
 }
@@ -901,34 +307,9 @@ extension AppStateQueryProperty
     });
   }
 
-  QueryBuilder<AppState, String, QQueryOperations> currentSessionIdProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'currentSessionId');
-    });
-  }
-
   QueryBuilder<AppState, bool, QQueryOperations> isServiceRunningProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isServiceRunning');
-    });
-  }
-
-  QueryBuilder<AppState, DateTime?, QQueryOperations> lastDateResetProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'lastDateReset');
-    });
-  }
-
-  QueryBuilder<AppState, DateTime?, QQueryOperations> lastUpdateTimeProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'lastUpdateTime');
-    });
-  }
-
-  QueryBuilder<AppState, DateTime?, QQueryOperations>
-  serviceStartTimeProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'serviceStartTime');
     });
   }
 }

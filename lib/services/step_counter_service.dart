@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../models/step_record.dart';
 import '../models/app_state.dart';
-import '../models/session.dart';
 import 'storage_service.dart';
 import 'permission_service.dart';
 
@@ -66,13 +65,7 @@ class StepCounterService {
       // Sync local state with actual service status
       if (appState.isServiceRunning != isServiceRunning) {
         await StorageService.instance.saveAppState(
-          AppState(
-            serviceStartTime: appState.serviceStartTime,
-            currentSessionId: appState.currentSessionId,
-            isServiceRunning: isServiceRunning,
-            lastUpdateTime: DateTime.now(),
-            lastDateReset: appState.lastDateReset,
-          ),
+          AppState(isServiceRunning: isServiceRunning),
         );
 
         developer.log(
@@ -174,23 +167,8 @@ class StepCounterService {
         _isServiceRunning = true;
         _currentSessionId = const Uuid().v4();
 
-        // Create new session
-        final session = Session(
-          sessionId: _currentSessionId,
-          startTime: DateTime.now(),
-          startSteps: 0,
-          endSteps: 0,
-          totalSteps: 0,
-        );
-        await StorageService.instance.addSession(session);
-
         // Save new app state
-        final newState = AppState(
-          serviceStartTime: DateTime.now(),
-          currentSessionId: _currentSessionId,
-          isServiceRunning: true,
-          lastUpdateTime: DateTime.now(),
-        );
+        final newState = AppState(isServiceRunning: true);
         await StorageService.instance.saveAppState(newState);
 
         // Start step counting
@@ -218,21 +196,6 @@ class StepCounterService {
       await _stepSubscription?.cancel();
       _stepSubscription = null;
 
-      // End current session
-      final latestSession = await StorageService.instance.getLatestSession();
-      if (latestSession != null && latestSession.endTime == null) {
-        final updatedSession = Session(
-          sessionId: latestSession.sessionId,
-          startTime: latestSession.startTime,
-          endTime: DateTime.now(),
-          startSteps: latestSession.startSteps,
-          endSteps: latestSession.endSteps,
-          totalSteps: latestSession.totalSteps,
-          endReason: 'USER_STOP',
-        );
-        await StorageService.instance.addSession(updatedSession);
-      }
-
       // Stop foreground task
       final result = await FlutterForegroundTask.stopService();
 
@@ -240,14 +203,7 @@ class StepCounterService {
         _isServiceRunning = false;
 
         // Update app state
-        final appState = await StorageService.instance.getAppState();
-        final updatedState = AppState(
-          serviceStartTime: appState.serviceStartTime,
-          currentSessionId: '',
-          isServiceRunning: false,
-          lastUpdateTime: DateTime.now(),
-          lastDateReset: appState.lastDateReset,
-        );
+        final updatedState = AppState(isServiceRunning: false);
         await StorageService.instance.saveAppState(updatedState);
 
         developer.log('SERVICE_STOPPED session_id: $_currentSessionId');
@@ -315,36 +271,28 @@ class StepCounterService {
     try {
       // Get or create today's record
       final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
-        _currentSessionId,
+        date,
       );
 
-      // Calculate delta from last known steps
-      final delta = steps - todayRecord.lastKnownSteps;
+      // Update today's step count
+      final updatedRecord = DailyStepRecord(
+        date: todayRecord.date,
+        steps: steps,
+        lastUpdateTime: DateTime.now(),
+      );
 
-      if (delta > 0) {
-        // Update today's step count
-        final updatedRecord = DailyStepRecord(
-          date: todayRecord.date,
-          steps: todayRecord.steps + delta,
-          lastKnownSteps: steps,
-          lastUpdateTime: DateTime.now(),
-          sessionId: _currentSessionId,
-          synced: todayRecord.synced,
-        );
+      // Save to Isar with reactive updates
+      await StorageService.instance.addDailyStepRecord(updatedRecord);
 
-        // Save to Isar with reactive updates
-        await StorageService.instance.addDailyStepRecord(updatedRecord);
-
-        // Update notification every 7 steps to save battery
-        if (updatedRecord.steps % 7 == 0) {
-          await _updateNotification(updatedRecord.steps);
-        }
-
-        // Log the step change
-        developer.log(
-          'DAILY_STEP_CHANGE: steps=$steps || delta=$delta || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
-        );
+      // Update notification every 7 steps to save battery
+      if (updatedRecord.steps % 7 == 0) {
+        await _updateNotification(updatedRecord.steps);
       }
+
+      // Log the step change
+      developer.log(
+        'DAILY_STEP_CHANGE: steps=$steps || totalSteps=${updatedRecord.steps} || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
+      );
     } catch (e) {
       developer.log(
         'STEP_HANDLE_ERROR error: $e steps: $steps',
@@ -361,11 +309,7 @@ class StepCounterService {
       // Update app state with new reset date
       final appState = await StorageService.instance.getAppState();
       final updatedState = AppState(
-        serviceStartTime: appState.serviceStartTime,
-        currentSessionId: appState.currentSessionId,
         isServiceRunning: appState.isServiceRunning,
-        lastUpdateTime: DateTime.now(),
-        lastDateReset: todayDate,
       );
       await StorageService.instance.saveAppState(updatedState);
 
@@ -442,16 +386,7 @@ class StepCounterTaskHandler extends TaskHandler {
 
   Future<void> _updateServiceState(bool isRunning) async {
     try {
-      final appState = await StorageService.instance.getAppState();
-      final updatedState = AppState(
-        serviceStartTime: isRunning
-            ? DateTime.now()
-            : appState.serviceStartTime,
-        currentSessionId: isRunning ? const Uuid().v4() : '',
-        isServiceRunning: isRunning,
-        lastUpdateTime: DateTime.now(),
-        lastDateReset: appState.lastDateReset,
-      );
+      final updatedState = AppState(isServiceRunning: isRunning);
       await StorageService.instance.saveAppState(updatedState);
     } catch (e) {
       developer.log('SERVICE_STATE_UPDATE_ERROR: $e', level: 1000, error: e);
