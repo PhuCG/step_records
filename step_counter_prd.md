@@ -465,6 +465,45 @@ App kill / resume:
 - UI uses only the API above plus database watch streams for rendering.
 - All data mutations happen inside the service task handler.
 
+### Isar Database Best Practices (CRITICAL)
+
+**Problem:** Isar `watch()` streams fail if the model doesn't exist, and replacing instances breaks reactive streams.
+
+**Solution:**
+1. **Initialization-first approach:**
+   - Call `ensureRequiredModelsExist()` at app startup BEFORE any `watch()` calls
+   - Create singleton `AppState` with ID=0
+   - Create today's `DailyStepRecord` if it doesn't exist
+   - Only then is it safe to use `watch()` in UI
+
+2. **Get-Modify-Put pattern for all updates:**
+   ```dart
+   // ✅ CORRECT: Preserves watch streams
+   await isar.writeTxn(() async {
+     final appState = await isar.appStates.get(0);
+     if (appState != null) {
+       appState.isServiceRunning = true; // Modify existing instance
+       await isar.appStates.put(appState); // Put back same instance
+     }
+   });
+   
+   // ❌ WRONG: Breaks watch streams
+   await isar.writeTxn(() async {
+     final newState = AppState()..isServiceRunning = true; // New instance
+     await isar.appStates.put(newState); // Replaces old instance - breaks watches!
+   });
+   ```
+
+3. **Singleton pattern for AppState:**
+   - Always use ID=0 for the single app state
+   - Use `await isar.appStates.get(0)` to retrieve
+   - Never create multiple AppState instances
+
+4. **Daily record uniqueness:**
+   - Use date (normalized to midnight) as the unique key
+   - Query with `.filter().dateEqualTo(todayDate).findFirst()`
+   - Modify existing record for the day, don't create duplicates
+
 ### Service Configuration
 ```dart
 FlutterForegroundTask.init(
@@ -512,47 +551,55 @@ void startListening() {
 }
 
 Future<void> _handleRawTotalUpdate(int rawDeviceTotal) async {
-  // Load app state for accumulator and session
-  final appState = await _isar.appStates.get(0);
-  if (appState == null) return;
-
-  // Reboot detection: raw decreased -> add lastRaw to accumulator
-  if (appState.lastRawDeviceTotal > 0 && rawDeviceTotal < appState.lastRawDeviceTotal) {
-    appState.accumulatorOffset += appState.lastRawDeviceTotal;
-  }
-
-  // Compute effective total
-  final effectiveTotal = rawDeviceTotal + appState.accumulatorOffset;
-
-  // Day rollover check
-  final now = DateTime.now();
-  final todayDate = DateTime(now.year, now.month, now.day);
-  if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
-    await _createNewDayBaseline(todayDate, effectiveTotal);
-    _lastResetDate = todayDate;
-  }
-
-  // Update today's record from baselines
-  final todayRecord = await _getOrCreateDailyRecord(todayDate);
-  todayRecord.lastRawDeviceTotal = rawDeviceTotal;
-  todayRecord.endSteps = effectiveTotal;
-  todayRecord.steps = (todayRecord.endSteps - todayRecord.startSteps).clamp(0, 1 << 31);
-  todayRecord.lastUpdateTime = now;
-
-  // Update session if active
-  if (appState.currentSessionId.isNotEmpty && appState.sessionStartSteps != null) {
-    appState.sessionEndSteps = effectiveTotal;
-  }
-
-  appState.lastRawDeviceTotal = rawDeviceTotal;
-  appState.lastUpdateTime = now;
-
   await _isar.writeTxn(() async {
-    await _isar.dailyStepRecords.put(todayRecord);
-    await _isar.appStates.put(appState);
-  });
+    // CRITICAL: Load existing instance, modify it, then put back
+    final appState = await _isar.appStates.get(0);
+    if (appState == null) return;
 
-  developer.log('DAILY_STEP_UPDATE: eff=$effectiveTotal || steps=${todayRecord.steps} || date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter');
+    // Reboot detection: raw decreased -> add lastRaw to accumulator
+    if (appState.lastRawDeviceTotal > 0 && rawDeviceTotal < appState.lastRawDeviceTotal) {
+      appState.accumulatorOffset += appState.lastRawDeviceTotal;
+      developer.log('REBOOT_DETECTED: lastRaw=${appState.lastRawDeviceTotal} || newRaw=$rawDeviceTotal || offset=${appState.accumulatorOffset} || name: StepCounter');
+    }
+
+    // Compute effective total
+    final effectiveTotal = rawDeviceTotal + appState.accumulatorOffset;
+
+    // Day rollover check
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
+      await _createNewDayBaseline(todayDate, effectiveTotal);
+      _lastResetDate = todayDate;
+      appState.lastDateReset = todayDate;
+    }
+
+    // CRITICAL: Load existing today's record, modify it, then put back
+    var todayRecord = await _isar.dailyStepRecords
+        .filter()
+        .dateEqualTo(todayDate)
+        .findFirst();
+    
+    if (todayRecord != null) {
+      // Modify existing instance
+      todayRecord.lastRawDeviceTotal = rawDeviceTotal;
+      todayRecord.endSteps = effectiveTotal;
+      todayRecord.steps = (todayRecord.endSteps - todayRecord.startSteps).clamp(0, 1 << 31);
+      todayRecord.lastUpdateTime = now;
+      await _isar.dailyStepRecords.put(todayRecord); // Put back same instance
+    }
+
+    // Update session if active (modify existing appState instance)
+    if (appState.currentSessionId.isNotEmpty && appState.sessionStartSteps != null) {
+      appState.sessionEndSteps = effectiveTotal;
+    }
+
+    appState.lastRawDeviceTotal = rawDeviceTotal;
+    appState.lastUpdateTime = now;
+    await _isar.appStates.put(appState); // Put back same instance
+
+    developer.log('DAILY_STEP_UPDATE: eff=$effectiveTotal || steps=${todayRecord?.steps ?? 0} || date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter');
+  });
 }
 
 Future<void> _ensureDailyBaseline(DateTime date) async {
@@ -592,9 +639,59 @@ Future<void> _createNewDayBaseline(DateTime date, int effectiveTotal) async {
 
 ```
 
-### Isar Reactive UI Updates
+### Isar Reactive UI Updates & Initialization Pattern
+
+**Critical Isar Requirements:**
+1. **Always ensure models exist before watching** - Isar watch will fail if the model doesn't exist yet
+2. **Always update existing instances, never replace** - Use get → modify → put pattern to preserve watch streams
+
 ```dart
-// Watch daily step records for UI updates
+// INITIALIZATION: Must be called at app startup before any watch() calls
+Future<void> ensureRequiredModelsExist() async {
+  await _isar.writeTxn(() async {
+    // Ensure AppState exists with ID=0 (singleton)
+    var appState = await _isar.appStates.get(0);
+    if (appState == null) {
+      appState = AppState()
+        ..id = 0
+        ..currentSessionId = ''
+        ..isServiceRunning = false
+        ..lastUpdateTime = DateTime.now()
+        ..lastDateReset = DateTime.now()
+        ..accumulatorOffset = 0
+        ..lastRawDeviceTotal = 0
+        ..sessionStartSteps = null
+        ..sessionEndSteps = null;
+      await _isar.appStates.put(appState);
+      developer.log('INIT: AppState created || name: StepCounter');
+    }
+    
+    // Ensure today's DailyStepRecord exists
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    var todayRecord = await _isar.dailyStepRecords
+        .filter()
+        .dateEqualTo(todayDate)
+        .findFirst();
+    
+    if (todayRecord == null) {
+      final effectiveTotal = appState.lastRawDeviceTotal + appState.accumulatorOffset;
+      todayRecord = DailyStepRecord()
+        ..date = todayDate
+        ..startSteps = effectiveTotal
+        ..endSteps = effectiveTotal
+        ..steps = 0
+        ..lastRawDeviceTotal = 0
+        ..lastUpdateTime = DateTime.now()
+        ..sessionId = ''
+        ..synced = false;
+      await _isar.dailyStepRecords.put(todayRecord);
+      developer.log('INIT: DailyStepRecord created || date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter');
+    }
+  });
+}
+
+// Watch daily step records for UI updates (safe after ensureRequiredModelsExist)
 Stream<List<DailyStepRecord>> watchTodaySteps() {
   final today = DateTime.now();
   final todayDate = DateTime(today.year, today.month, today.day);
@@ -605,10 +702,10 @@ Stream<List<DailyStepRecord>> watchTodaySteps() {
       .watch(fireImmediately: true);
 }
 
-// Watch app state changes
+// Watch app state changes (safe after ensureRequiredModelsExist)
 Stream<AppState?> watchAppState() {
   return _isar.appStates
-      .filter()
+      .where()
       .idEqualTo(0) // Single app state record
       .watch(fireImmediately: true);
 }
@@ -624,6 +721,68 @@ Future<int> getTodayStepCount() async {
       .findFirst();
   
   return record?.steps ?? 0;
+}
+
+// CORRECT UPDATE PATTERN: Get existing instance → modify → put
+Future<void> updateAppState(Function(AppState) updateFn) async {
+  await _isar.writeTxn(() async {
+    final appState = await _isar.appStates.get(0);
+    if (appState != null) {
+      updateFn(appState); // Modify the existing instance
+      await _isar.appStates.put(appState); // Put back the same instance
+    }
+  });
+}
+
+// Example: Update service running state
+Future<void> setServiceRunning(bool isRunning) async {
+  await updateAppState((state) {
+    state.isServiceRunning = isRunning;
+    state.lastUpdateTime = DateTime.now();
+  });
+}
+
+// CORRECT UPDATE PATTERN for DailyStepRecord
+Future<void> updateTodaySteps(int effectiveTotal) async {
+  final today = DateTime.now();
+  final todayDate = DateTime(today.year, today.month, today.day);
+  
+  await _isar.writeTxn(() async {
+    final record = await _isar.dailyStepRecords
+        .filter()
+        .dateEqualTo(todayDate)
+        .findFirst();
+    
+    if (record != null) {
+      // Modify existing instance
+      record.endSteps = effectiveTotal;
+      record.steps = (record.endSteps - record.startSteps).clamp(0, 1 << 31);
+      record.lastUpdateTime = DateTime.now();
+      await _isar.dailyStepRecords.put(record); // Put back the same instance
+    }
+  });
+}
+```
+
+**App Initialization Flow:**
+```dart
+// In main.dart or app startup
+Future<void> initializeApp() async {
+  // 1. Initialize Isar
+  final dir = await getApplicationDocumentsDirectory();
+  final isar = await Isar.open(
+    [AppStateSchema, DailyStepRecordSchema],
+    directory: dir.path,
+  );
+  
+  // 2. CRITICAL: Ensure required models exist BEFORE any watch() calls
+  await ensureRequiredModelsExist();
+  
+  // 3. Validate service state (sync with actual service status)
+  await validateServiceState();
+  
+  // 4. Now safe to use watch() in UI
+  runApp(MyApp());
 }
 ```
 
