@@ -10,6 +10,8 @@
 ### Purpose
 Develop a proof-of-concept mobile application that counts user steps continuously when the app is in foreground or background, and logs all activity data locally for analysis. The app uses foreground service to maintain step counting even when the main app is not visible, but may stop when the app is force-killed by the user.
 
+This is a background-first design: all counting, baselining, and persistence happen in the background service. The UI is intentionally minimal and acts only as a thin client to visualize the latest totals and to expose a single Start/Stop control that toggles the background counter.
+
 ---
 
 ## Technical Stack
@@ -55,6 +57,10 @@ dev_dependencies:
 - ✅ Step count accuracy within ±5% of system pedometer
 - ✅ UI updates reactively when step count changes
 - ⚠️ Service may stop when app is force-killed by user (OS limitation)
+
+**Background-first Constraint:**
+- ✅ All counting logic and data writes occur in the background service (foreground task), not in UI.
+- ✅ UI never computes or mutates step totals; it only observes database streams and invokes Start/Stop.
 
 **Implementation:**
 - Use `flutter_foreground_task` to maintain persistent service
@@ -124,6 +130,12 @@ SERVICE_AUTO_RESTART: reason=force_kill_detected || timestamp=2025-10-09T10:30:4
 - Must be non-dismissible (Android)
 - Updates every 7 steps (to save battery)
 
+**Service Responsibilities (authoritative source of truth):**
+- Maintain accumulator/baseline math and detect day rollover/reboots
+- Persist daily `startSteps`, `endSteps`, `steps` and session fields
+- Emit progress to the notification (optional actions: Pause/Stop)
+- Expose Start/Stop lifecycle (via a single public API used by the UI)
+
 **Notification Content:**
 ```
 Title: Step Counter Active
@@ -147,8 +159,13 @@ class DailyStepRecord {
   Id id = Isar.autoIncrement;
   @Index()
   late DateTime date; // YYYY-MM-DD format for daily tracking
-  late int steps; // Steps for this specific day
-  late int lastKnownSteps; // Last known step count from pedometer
+  // Baseline-based daily tracking
+  late int startSteps; // Effective total at the start of the day (baseline)
+  late int endSteps;   // Latest effective total observed for the day
+  late int steps;      // Computed: endSteps - startSteps (persisted for convenience)
+  
+  // Optional diagnostics per day (raw pedometer continuity)
+  late int lastRawDeviceTotal; // Last raw total read during the day (for reboot detection)
   @Index()
   late DateTime lastUpdateTime;
   late String sessionId;
@@ -167,6 +184,15 @@ class AppState {
   late bool isServiceRunning;
   DateTime? lastUpdateTime;
   late DateTime lastDateReset; // Track when we last reset daily counter
+
+  // Baseline math for converting raw pedometer total to a monotonic effective total
+  // effectiveTotal = rawDeviceTotal + accumulatorOffset
+  late int accumulatorOffset; // Sum of lastRaw totals across device reboots
+  late int lastRawDeviceTotal; // Last raw total observed globally (not per day)
+
+  // Session tracking (active when user pressed Start)
+  int? sessionStartSteps; // Effective total at session start (baseline)
+  int? sessionEndSteps;   // Latest effective total while session active
 }
 ```
 
@@ -379,26 +405,27 @@ class Session {
 
 ## UI/UX Requirements
 
-### Main Screen
+### Main Screen (Minimal UI)
 ```
 ┌─────────────────────────────┐
-│  [☰] Step Counter    [⋮]    │
+│  Step Counter               │
 ├─────────────────────────────┤
-│                             │
 │        👟 12,345            │
 │        steps today          │
-│                             │
-│   Last updated: 10:30 AM    │
+│   Service: ● Active         │
+│   Last: 10:30 AM            │
 │                             │
 │  ┌─────────────────────┐    │
-│  │  [Start Tracking]   │    │
+│  │ [Start / Stop]      │    │ ← single toggle button
 │  └─────────────────────┘    │
-│                             │
-│  Session: 2h 15m            │
-│  Service: ● Active          │
 ├─────────────────────────────┤
 
 ```
+
+**Minimal UI Requirements:**
+- Single toggle button that calls background service API to Start or Stop.
+- Display only: today's steps, service status, last update time.
+- UI reads from Isar streams (`watchTodaySteps()`, `watchAppState()`); UI never writes step data.
 
 ### Settings Screen
 - Permission status indicators
@@ -410,6 +437,33 @@ class Session {
 ---
 
 ## Technical Implementation Details
+
+### Baseline-based Counting (accurate per-day from cumulative pedometer)
+The pedometer returns a cumulative step total that can reset on device reboot. Use baselines and an accumulator to compute accurate per-day and per-session steps.
+
+Formulas:
+- effectiveTotal = rawDeviceTotal + accumulatorOffset
+- On reboot detection (rawDeviceTotal < lastRawDeviceTotal): accumulatorOffset += lastRawDeviceTotal
+- Daily: dailySteps = max(0, effectiveTotal - dailyStartSteps)
+- Session (if active): sessionSteps = max(0, effectiveTotal - sessionStartSteps)
+
+Where:
+- dailyStartSteps is stored in `DailyStepRecord.startSteps` for today.
+- sessionStartSteps is stored in `AppState.sessionStartSteps` when user presses Start.
+
+Day rollover:
+- On first tick after 00:00 or when today changes, set `startSteps = effectiveTotal`, `endSteps = effectiveTotal`, `steps = 0` for the new `DailyStepRecord`.
+
+App kill / resume:
+- No need to see every delta. On resume, read the current rawDeviceTotal, compute effectiveTotal, then update today's `endSteps` and `steps`. If session active, update `sessionEndSteps` as well.
+
+### Background-first Integration Contract
+- Public API (service layer):
+  - `startCounting()` → initializes session baselines, starts foreground task
+  - `stopCounting()` → stops foreground task, seals session
+  - `isRunning()` → reflects `FlutterForegroundTask.isRunningService`
+- UI uses only the API above plus database watch streams for rendering.
+- All data mutations happen inside the service task handler.
 
 ### Service Configuration
 ```dart
@@ -430,7 +484,7 @@ FlutterForegroundTask.init(
 );
 ```
 
-### Daily Step Stream Handling
+### Step Stream Handling (from cumulative pedometer total)
 ```dart
 import 'dart:developer' as developer;
 
@@ -438,49 +492,100 @@ StreamSubscription? _stepSubscription;
 DateTime? _lastResetDate;
 
 void startListening() {
-  // Get today's date for daily tracking
-  final today = DateTime.now();
-  final todayDate = DateTime(today.year, today.month, today.day);
-  
-  // Check if we need to reset daily counter
-  if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
-    await _resetDailyCounter(todayDate);
-  }
-  
-  // Listen to daily step count stream from today
-  _stepSubscription = Pedometer().stepCountStreamFrom(todayDate).listen(
-    (steps) async {
-      await _handleDailyStepChange(steps, todayDate);
+  final now = DateTime.now();
+  final todayDate = DateTime(now.year, now.month, now.day);
+
+  // Ensure today's record exists and baselined
+  _ensureDailyBaseline(todayDate);
+
+  // Listen to cumulative raw step total
+  _stepSubscription = Pedometer().stepCountStream.listen(
+    (rawDeviceTotal) async {
+      await _handleRawTotalUpdate(rawDeviceTotal);
     },
     onError: (error) {
       developer.log('PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter', level: 1000, error: error);
       _handlePedometerError(error);
     },
-    cancelOnError: false, // Continue on errors
+    cancelOnError: false,
   );
 }
 
-Future<void> _handleDailyStepChange(int steps, DateTime date) async {
-  // Get or create today's record
-  final todayRecord = await _getOrCreateDailyRecord(date);
-  
-  // Calculate delta from last known steps
-  final delta = steps - todayRecord.lastKnownSteps;
-  
-  if (delta > 0) {
-    // Update today's step count
-    todayRecord.steps += delta;
-    todayRecord.lastKnownSteps = steps;
-    todayRecord.lastUpdateTime = DateTime.now();
-    
-    // Save to Isar with reactive updates
-    await _isar.writeTxn(() async {
-      await _isar.dailyStepRecords.put(todayRecord);
-    });
-    
-    // Log the step change
-    developer.log('DAILY_STEP_CHANGE: steps=$steps || delta=$delta || date=${date.toIso8601String().split('T')[0]} || name: StepCounter');
+Future<void> _handleRawTotalUpdate(int rawDeviceTotal) async {
+  // Load app state for accumulator and session
+  final appState = await _isar.appStates.get(0);
+  if (appState == null) return;
+
+  // Reboot detection: raw decreased -> add lastRaw to accumulator
+  if (appState.lastRawDeviceTotal > 0 && rawDeviceTotal < appState.lastRawDeviceTotal) {
+    appState.accumulatorOffset += appState.lastRawDeviceTotal;
   }
+
+  // Compute effective total
+  final effectiveTotal = rawDeviceTotal + appState.accumulatorOffset;
+
+  // Day rollover check
+  final now = DateTime.now();
+  final todayDate = DateTime(now.year, now.month, now.day);
+  if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
+    await _createNewDayBaseline(todayDate, effectiveTotal);
+    _lastResetDate = todayDate;
+  }
+
+  // Update today's record from baselines
+  final todayRecord = await _getOrCreateDailyRecord(todayDate);
+  todayRecord.lastRawDeviceTotal = rawDeviceTotal;
+  todayRecord.endSteps = effectiveTotal;
+  todayRecord.steps = (todayRecord.endSteps - todayRecord.startSteps).clamp(0, 1 << 31);
+  todayRecord.lastUpdateTime = now;
+
+  // Update session if active
+  if (appState.currentSessionId.isNotEmpty && appState.sessionStartSteps != null) {
+    appState.sessionEndSteps = effectiveTotal;
+  }
+
+  appState.lastRawDeviceTotal = rawDeviceTotal;
+  appState.lastUpdateTime = now;
+
+  await _isar.writeTxn(() async {
+    await _isar.dailyStepRecords.put(todayRecord);
+    await _isar.appStates.put(appState);
+  });
+
+  developer.log('DAILY_STEP_UPDATE: eff=$effectiveTotal || steps=${todayRecord.steps} || date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter');
+}
+
+Future<void> _ensureDailyBaseline(DateTime date) async {
+  final record = await _getOrCreateDailyRecord(date);
+  if (record.startSteps == 0 && record.endSteps == 0 && record.steps == 0) {
+    // Initialize baseline from current effective total if available
+    final appState = await _isar.appStates.get(0);
+    if (appState != null) {
+      final effectiveTotal = appState.lastRawDeviceTotal + appState.accumulatorOffset;
+      record.startSteps = effectiveTotal;
+      record.endSteps = effectiveTotal;
+      record.steps = 0;
+      record.lastUpdateTime = DateTime.now();
+      await _isar.writeTxn(() async {
+        await _isar.dailyStepRecords.put(record);
+      });
+    }
+  }
+}
+
+Future<void> _createNewDayBaseline(DateTime date, int effectiveTotal) async {
+  final newRecord = DailyStepRecord()
+    ..date = date
+    ..startSteps = effectiveTotal
+    ..endSteps = effectiveTotal
+    ..steps = 0
+    ..lastRawDeviceTotal = 0
+    ..lastUpdateTime = DateTime.now()
+    ..sessionId = ''
+    ..synced = false;
+  await _isar.writeTxn(() async {
+    await _isar.dailyStepRecords.put(newRecord);
+  });
 }
 ```
 
@@ -541,6 +646,16 @@ Future<int> getTodayStepCount() async {
 - [ ] Data persistence after restart
 - [ ] Error recovery scenarios
 - [ ] Service state sync after app kill
+
+### Scenario Coverage for Baseline Logic
+1. User has NOT pressed Start, walks 1000 steps (TH1):
+   - `dailyStartSteps` is set at first tick of the day; `dailySteps = effectiveTotal - dailyStartSteps`.
+   - Persist `startSteps`, `endSteps`, `steps` per day; no session required.
+2. User pressed Start, then app is killed/backgrounded, later re-opens (TH2):
+   - On resume, compute `effectiveTotal` from raw + accumulator.
+   - `sessionSteps = effectiveTotal - sessionStartSteps`; update `daily` similarly.
+3. After pressing Start, always count even across kills (TH3):
+   - Persist `sessionStartSteps` at Start; on next open, recompute and fill `sessionEndSteps` and `daily` from baselines.
 
 ### Manual Testing Scenarios
 1. **Happy Path:**
