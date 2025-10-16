@@ -91,14 +91,17 @@ class StorageService {
 
   // App State
   Future<void> saveAppState(AppState state) async {
-    state.id = 0;
-    await _isar!.writeTxn(() async {
-      await _isar!.appStates.put(state);
+    await _isar?.writeTxn(() async {
+      final item = await _isar?.appStates.where().findFirst();
+      item?.isServiceRunning = state.isServiceRunning;
+      if (item != null) await _isar?.appStates.put(item);
     });
   }
 
   Future<AppState> getAppState() async {
-    return (await _isar!.appStates.get(0)) ?? AppState();
+    final item = await _isar?.appStates.where().findFirst();
+    if (item != null) return item;
+    return AppState();
   }
 
   // Watch app state changes

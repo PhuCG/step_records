@@ -63,10 +63,9 @@ AppState _appStateDeserialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  final object = AppState(
-    isServiceRunning: reader.readBoolOrNull(offsets[0]) ?? false,
-  );
+  final object = AppState();
   object.id = id;
+  object.isServiceRunning = reader.readBool(offsets[0]);
   return object;
 }
 
@@ -78,7 +77,7 @@ P _appStateDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
+      return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }

@@ -61,7 +61,7 @@ class StepCounterService {
       // Sync local state with actual service status
       if (appState.isServiceRunning != isServiceRunning) {
         await StorageService.instance.saveAppState(
-          AppState(isServiceRunning: isServiceRunning),
+          AppState()..isServiceRunning = isServiceRunning,
         );
 
         developer.log(
@@ -164,7 +164,7 @@ class StepCounterService {
         _currentSessionId = const Uuid().v4();
 
         // Save new app state
-        final newState = AppState(isServiceRunning: true);
+        final newState = AppState()..isServiceRunning = true;
         await StorageService.instance.saveAppState(newState);
 
         developer.log('SERVICE_STARTED session_id: $_currentSessionId');
@@ -192,7 +192,7 @@ class StepCounterService {
         _isServiceRunning = false;
 
         // Update app state
-        final updatedState = AppState(isServiceRunning: false);
+        final updatedState = AppState()..isServiceRunning = false;
         await StorageService.instance.saveAppState(updatedState);
 
         developer.log('SERVICE_STOPPED session_id: $_currentSessionId');
@@ -224,6 +224,15 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     // Service started - update local state
     developer.log('SERVICE_START: name: $starter');
+
+    // Initialize StorageService in this isolate
+    try {
+      await StorageService.instance.initialize();
+      developer.log('STORAGE_SERVICE_INITIALIZED_IN_ISOLATE');
+    } catch (e) {
+      developer.log('STORAGE_INIT_ERROR_IN_ISOLATE: $e', level: 1000, error: e);
+    }
+
     await _updateServiceState(true);
     developer.log(
       'SERVICE_START: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
@@ -253,7 +262,7 @@ class StepCounterTaskHandler extends TaskHandler {
 
   Future<void> _updateServiceState(bool isRunning) async {
     try {
-      final updatedState = AppState(isServiceRunning: isRunning);
+      final updatedState = AppState()..isServiceRunning = isRunning;
       await StorageService.instance.saveAppState(updatedState);
     } catch (e) {
       developer.log('SERVICE_STATE_UPDATE_ERROR: $e', level: 1000, error: e);
@@ -342,9 +351,8 @@ class StepCounterTaskHandler extends TaskHandler {
       _previousDailySteps = 0; // Reset previous steps for new day
 
       final appState = await StorageService.instance.getAppState();
-      final updatedState = AppState(
-        isServiceRunning: appState.isServiceRunning,
-      );
+      final updatedState = AppState()
+        ..isServiceRunning = appState.isServiceRunning;
       await StorageService.instance.saveAppState(updatedState);
 
       developer.log(
