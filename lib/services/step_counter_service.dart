@@ -217,6 +217,8 @@ Future<void> startCallback() async {
 class StepCounterTaskHandler extends TaskHandler {
   StreamSubscription? _stepSubscription;
   DateTime? _lastResetDate;
+  int? _baselineSteps; // Steps at service start (device boot count)
+  int _previousDailySteps = 0; // Steps from previous session
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -267,6 +269,12 @@ class StepCounterTaskHandler extends TaskHandler {
         await _resetDailyCounter(todayDate);
       }
 
+      // Load previous daily steps from storage
+      final todayRecord = await StorageService.instance.getTodayStepRecord();
+      _previousDailySteps = todayRecord?.steps ?? 0;
+
+      developer.log('STEP_COUNTING_INIT: previousSteps=$_previousDailySteps');
+
       _stepSubscription = Pedometer().stepCountStream().listen(
         (steps) async {
           await _handleDailyStepChange(steps, todayDate);
@@ -287,15 +295,27 @@ class StepCounterTaskHandler extends TaskHandler {
     }
   }
 
-  Future<void> _handleDailyStepChange(int steps, DateTime date) async {
+  Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
     try {
+      // Initialize baseline on first step event
+      if (_baselineSteps == null) {
+        _baselineSteps = deviceSteps;
+        developer.log('BASELINE_SET: baselineSteps=$_baselineSteps');
+      }
+
+      // Calculate steps in this session
+      final sessionSteps = deviceSteps - _baselineSteps!;
+
+      // Calculate total daily steps
+      final totalDailySteps = _previousDailySteps + sessionSteps;
+
       final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
         date,
       );
-      developer.log('EXISTING_RECORD: steps=${todayRecord.steps}');
+
       final updatedRecord = DailyStepRecord(
         date: todayRecord.date,
-        steps: steps,
+        steps: totalDailySteps,
         lastUpdateTime: DateTime.now(),
       );
 
@@ -304,11 +324,11 @@ class StepCounterTaskHandler extends TaskHandler {
       await _updateNotification(updatedRecord.steps);
 
       developer.log(
-        'DAILY_STEP_CHANGE_BG: steps=$steps || totalSteps=${updatedRecord.steps} || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
+        'DAILY_STEP_CHANGE_BG: deviceSteps=$deviceSteps || sessionSteps=$sessionSteps || totalSteps=$totalDailySteps || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
       );
     } catch (e) {
       developer.log(
-        'STEP_HANDLE_ERROR_BG error: $e steps: $steps',
+        'STEP_HANDLE_ERROR_BG error: $e deviceSteps: $deviceSteps',
         level: 1000,
         error: e,
       );
@@ -318,6 +338,8 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> _resetDailyCounter(DateTime todayDate) async {
     try {
       _lastResetDate = todayDate;
+      _baselineSteps = null; // Reset baseline for new day
+      _previousDailySteps = 0; // Reset previous steps for new day
 
       final appState = await StorageService.instance.getAppState();
       final updatedState = AppState(

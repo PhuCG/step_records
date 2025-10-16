@@ -51,40 +51,26 @@ class StorageService {
   Future<DailyStepRecord> getOrCreateTodayRecord(DateTime date) async {
     final todayDate = DateTime(date.year, date.month, date.day);
 
-    if (_isar?.dailyStepRecords != null) {
-      // Create new record for today
-      final newRecord = DailyStepRecord(
-        date: todayDate,
-        steps: 0,
-        lastUpdateTime: DateTime.now(),
-      );
+    // First, try to find existing record
+    final existing = await _isar?.dailyStepRecords
+        .filter()
+        .dateEqualTo(todayDate)
+        .findFirst();
 
-      await _isar?.writeTxn(() async {
-        await _isar?.dailyStepRecords.put(newRecord);
-      });
+    if (existing != null) return existing;
 
-      return newRecord;
-    } else {
-      final existing = await _isar?.dailyStepRecords
-          .filter()
-          .dateEqualTo(todayDate)
-          .findFirst();
+    // Create new record for today if not exists
+    final newRecord = DailyStepRecord(
+      date: todayDate,
+      steps: 0,
+      lastUpdateTime: DateTime.now(),
+    );
 
-      if (existing != null) return existing;
+    await _isar?.writeTxn(() async {
+      await _isar?.dailyStepRecords.put(newRecord);
+    });
 
-      // Create new record for today
-      final newRecord = DailyStepRecord(
-        date: todayDate,
-        steps: 0,
-        lastUpdateTime: DateTime.now(),
-      );
-
-      await _isar?.writeTxn(() async {
-        await _isar?.dailyStepRecords.put(newRecord);
-      });
-
-      return newRecord;
-    }
+    return newRecord;
   }
 
   Future<List<DailyStepRecord>> getAllDailyStepRecords() async {
