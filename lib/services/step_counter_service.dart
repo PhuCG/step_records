@@ -206,8 +206,11 @@ class StepCounterTaskHandler extends TaskHandler {
 
   Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
     try {
+      // check if today is the same as the date passed in, if not, reset the daily counter
+      final verifiedDate = await _resetDailyCounter(date, deviceSteps);
+
       final todayRecord = await _storageService.getOrCreateTodayRecord(
-        date,
+        verifiedDate,
         deviceSteps,
       );
 
@@ -222,24 +225,11 @@ class StepCounterTaskHandler extends TaskHandler {
     }
   }
 
-  Future<void> _resetDailyCounter(DateTime todayDate) async {
-    // try {
-    //   _lastResetDate = todayDate;
-
-    //   // Create new record for the new day
-    //   final newRecord = DailyStepRecord(
-    //     date: todayDate,
-    //     steps: 0,
-    //     lastUpdateTime: DateTime.now(),
-    //   );
-    //   await StorageService.instance.addDailyStepRecord(newRecord);
-
-    //   developer.log(
-    //     'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || created_new_record || name: StepCounter',
-    //   );
-    // } catch (e) {
-    //   developer.log('DAILY_RESET_ERROR_BG error: $e', level: 1000, error: e);
-    // }
+  Future<DateTime> _resetDailyCounter(DateTime today, int startSteps) async {
+    final now = _convertDayToKey(DateTime.now());
+    if (today == now) return now;
+    await _storageService.getOrCreateTodayRecord(now, startSteps);
+    return now;
   }
 
   Future<void> _updateNotification(int steps) async {
