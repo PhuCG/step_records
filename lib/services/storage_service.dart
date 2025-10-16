@@ -10,10 +10,6 @@ class StorageService {
 
   Isar? _isar;
 
-  // Watchers
-  Stream<void>? _appStateWatchLazy;
-  Stream<void>? _dailyStepRecordsWatchLazy;
-
   Future<void> initialize() async {
     final dir = await getApplicationDocumentsDirectory();
     _isar = await Isar.open([
@@ -28,7 +24,6 @@ class StorageService {
         await _isar?.appStates.put(AppState());
       });
     }
-    await _cleanupOldData();
   }
 
   // Daily Step Records
@@ -73,11 +68,6 @@ class StorageService {
     return newRecord;
   }
 
-  Future<List<DailyStepRecord>> getAllDailyStepRecords() async {
-    final q = _isar!.dailyStepRecords.where().sortByDate();
-    return await q.findAll();
-  }
-
   // Watch daily step records for UI updates
   Stream<List<DailyStepRecord>> watchTodaySteps() {
     final today = DateTime.now();
@@ -111,37 +101,6 @@ class StorageService {
         .idEqualTo(0) // Single app state record
         .watch(fireImmediately: true)
         .map((list) => list.isNotEmpty ? list.first : null);
-  }
-
-  // Watchers
-  Stream<void> watchAppStateLazy() {
-    _appStateWatchLazy ??= _isar!.appStates.watchLazy(fireImmediately: true);
-    return _appStateWatchLazy!;
-  }
-
-  Stream<void> watchDailyStepRecordsLazy() {
-    _dailyStepRecordsWatchLazy ??= _isar!.dailyStepRecords.watchLazy(
-      fireImmediately: true,
-    );
-    return _dailyStepRecordsWatchLazy!;
-  }
-
-  // Data cleanup
-  Future<void> _cleanupOldData() async {
-    final now = DateTime.now();
-    final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-
-    // Cleanup daily step records older than 30 days
-    final oldRecords = await _isar!.dailyStepRecords
-        .where()
-        .filter()
-        .dateLessThan(thirtyDaysAgo)
-        .findAll();
-    await _isar!.writeTxn(() async {
-      for (final r in oldRecords) {
-        await _isar!.dailyStepRecords.delete(r.id);
-      }
-    });
   }
 
   // Clear all data

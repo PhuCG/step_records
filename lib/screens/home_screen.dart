@@ -46,13 +46,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _initializeApp() async {
     try {
-      // Initialize service first to allow state reconciliation
-      await StepCounterService.instance.initialize();
-
-      // Load app state
+      // Load initial data
       _appState = await StorageService.instance.getAppState();
-
-      // Load today's step record
       _todayRecord = await StorageService.instance.getTodayStepRecord();
 
       setState(() {
@@ -67,17 +62,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed) {
-      // When app comes back to foreground, reconcile service state and refresh UI
-      StepCounterService.instance.validateServiceState().then(
-        (_) => _refreshAppState(),
-      );
-    }
-  }
-
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -85,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _startService() async {
     try {
-      // Check permissions first
+      // UI Layer: Handle permissions first
       final hasPermissions = await PermissionService.instance
           .checkAllPermissions();
       if (!hasPermissions) {
@@ -97,11 +81,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // Start service
+      // UI Layer: Start service (Service layer will handle the rest)
       final success = await StepCounterService.instance.startService();
       if (success) {
-        await _refreshAppState();
         _showSuccessSnackBar('Step counting started');
+        // No need to refresh - watchers will handle UI updates
       } else {
         _showErrorSnackBar('Failed to start step counting');
       }
@@ -112,10 +96,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _stopService() async {
     try {
+      // UI Layer: Stop service (Service layer will handle the rest)
       final success = await StepCounterService.instance.stopService();
       if (success) {
-        await _refreshAppState();
         _showSuccessSnackBar('Step counting stopped');
+        // No need to refresh - watchers will handle UI updates
       } else {
         _showErrorSnackBar('Failed to stop step counting');
       }
@@ -124,15 +109,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _refreshAppState() async {
-    final appState = await StorageService.instance.getAppState();
-    final todayRecord = await StorageService.instance.getTodayStepRecord();
-
-    setState(() {
-      _appState = appState;
-      _todayRecord = todayRecord;
-    });
-  }
+  // Removed _refreshAppState - UI updates are handled by watchers
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

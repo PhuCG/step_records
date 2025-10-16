@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../models/step_record.dart';
 import '../models/app_state.dart';
 import 'storage_service.dart';
-import 'permission_service.dart';
 
 class StepCounterService {
   static final StepCounterService _instance = StepCounterService._internal();
@@ -69,9 +68,9 @@ class StepCounterService {
         );
 
         // If local state says service should be running but it's not,
-        // it means user force-killed the app - auto-restart service
+        // it means user force-killed the app - just notify user
         if (appState.isServiceRunning && !isServiceRunning) {
-          await _autoRestartService();
+          await _handleServiceKilled();
         }
       }
 
@@ -85,64 +84,24 @@ class StepCounterService {
     }
   }
 
-  // Auto-restart service when user force-killed the app
-  Future<void> _autoRestartService() async {
+  // Simplified: No auto-restart - let user manually restart via UI
+  Future<void> _handleServiceKilled() async {
     try {
-      // Check if we have necessary permissions
-      final hasPermissions = await PermissionService.instance
-          .checkAllPermissions();
-      if (!hasPermissions) {
-        // Show notification asking user to grant permissions
-        await _showPermissionRequiredNotification();
-        developer.log(
-          'SERVICE_AUTO_RESTART_FAILED: reason=permissions_denied || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-        );
-        return;
-      }
-
-      // Start the service again
-      await FlutterForegroundTask.startService(
-        notificationTitle: 'Step Counter Active',
-        notificationText: 'Service restarted after app was killed',
-        callback: startCallback,
-      );
-
-      // Log the auto-restart event
-      developer.log(
-        'SERVICE_AUTO_RESTART: reason=force_kill_detected || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-      );
-    } catch (e) {
-      // If auto-restart fails, show notification to user
-      await _showServiceRestartFailedNotification();
-      developer.log(
-        'SERVICE_AUTO_RESTART_FAILED: error=${e.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-        level: 1000,
-        error: e,
-      );
-    }
-  }
-
-  Future<void> _showPermissionRequiredNotification() async {
-    try {
+      // Just update notification to inform user
       await FlutterForegroundTask.updateService(
-        notificationTitle: 'Step Counter - Permission Required',
-        notificationText: 'Please grant permissions to continue step counting',
-      );
-    } catch (e) {
-      developer.log('NOTIFICATION_ERROR: $e');
-    }
-  }
-
-  Future<void> _showServiceRestartFailedNotification() async {
-    try {
-      await FlutterForegroundTask.updateService(
-        notificationTitle: 'Step Counter - Restart Failed',
+        notificationTitle: 'Step Counter - Service Stopped',
         notificationText: 'Please open the app to restart step counting',
       );
+
+      developer.log(
+        'SERVICE_KILLED: user_force_killed || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
+      );
     } catch (e) {
       developer.log('NOTIFICATION_ERROR: $e');
     }
   }
+
+  // Removed unused notification methods
 
   Future<bool> startService() async {
     try {
@@ -163,7 +122,7 @@ class StepCounterService {
         _isServiceRunning = true;
         _currentSessionId = const Uuid().v4();
 
-        // Save new app state
+        // Save new app state - Service layer manages its own state
         final newState = AppState()..isServiceRunning = true;
         await StorageService.instance.saveAppState(newState);
 
@@ -274,19 +233,24 @@ class StepCounterTaskHandler extends TaskHandler {
       final now = DateTime.now();
       final todayDate = DateTime(now.year, now.month, now.day);
 
+      // Check if need to reset for new day
       if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
         await _resetDailyCounter(todayDate);
+        _previousDailySteps = 0; // Start fresh for new day
+        _baselineSteps = null; // Will be set on first step event
+      } else {
+        // Same day - load existing steps
+        final todayRecord = await StorageService.instance.getTodayStepRecord();
+        _previousDailySteps = todayRecord?.steps ?? 0;
       }
 
-      // Load previous daily steps from storage
-      final todayRecord = await StorageService.instance.getTodayStepRecord();
-      _previousDailySteps = todayRecord?.steps ?? 0;
-
-      developer.log('STEP_COUNTING_INIT: previousSteps=$_previousDailySteps');
+      developer.log(
+        'STEP_COUNTING_INIT: date=${todayDate.toIso8601String().split('T')[0]} || previousSteps=$_previousDailySteps',
+      );
 
       _stepSubscription = Pedometer().stepCountStream().listen(
         (steps) async {
-          await _handleDailyStepChange(steps, todayDate);
+          await _handleDailyStepChange(steps);
         },
         onError: (error) {
           developer.log(
@@ -304,8 +268,19 @@ class StepCounterTaskHandler extends TaskHandler {
     }
   }
 
-  Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
+  Future<void> _handleDailyStepChange(int deviceSteps) async {
     try {
+      final now = DateTime.now();
+      final currentDate = DateTime(now.year, now.month, now.day);
+
+      // Check if day changed while service running
+      if (_lastResetDate != null && !_isSameDay(_lastResetDate!, currentDate)) {
+        developer.log('DAY_CHANGED_DETECTED: resetting for new day');
+        await _resetDailyCounter(currentDate);
+        _previousDailySteps = 0;
+        _baselineSteps = null; // Reset baseline for new day
+      }
+
       // Initialize baseline on first step event
       if (_baselineSteps == null) {
         _baselineSteps = deviceSteps;
@@ -319,7 +294,7 @@ class StepCounterTaskHandler extends TaskHandler {
       final totalDailySteps = _previousDailySteps + sessionSteps;
 
       final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
-        date,
+        currentDate,
       );
 
       final updatedRecord = DailyStepRecord(
@@ -333,7 +308,7 @@ class StepCounterTaskHandler extends TaskHandler {
       await _updateNotification(updatedRecord.steps);
 
       developer.log(
-        'DAILY_STEP_CHANGE_BG: deviceSteps=$deviceSteps || sessionSteps=$sessionSteps || totalSteps=$totalDailySteps || date=${date.toIso8601String().split('T')[0]} || name: StepCounter',
+        'DAILY_STEP_CHANGE_BG: deviceSteps=$deviceSteps || sessionSteps=$sessionSteps || totalSteps=$totalDailySteps || date=${currentDate.toIso8601String().split('T')[0]} || name: StepCounter',
       );
     } catch (e) {
       developer.log(
@@ -347,16 +322,17 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> _resetDailyCounter(DateTime todayDate) async {
     try {
       _lastResetDate = todayDate;
-      _baselineSteps = null; // Reset baseline for new day
-      _previousDailySteps = 0; // Reset previous steps for new day
 
-      final appState = await StorageService.instance.getAppState();
-      final updatedState = AppState()
-        ..isServiceRunning = appState.isServiceRunning;
-      await StorageService.instance.saveAppState(updatedState);
+      // Create new record for the new day
+      final newRecord = DailyStepRecord(
+        date: todayDate,
+        steps: 0,
+        lastUpdateTime: DateTime.now(),
+      );
+      await StorageService.instance.addDailyStepRecord(newRecord);
 
       developer.log(
-        'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || name: StepCounter',
+        'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || created_new_record || name: StepCounter',
       );
     } catch (e) {
       developer.log('DAILY_RESET_ERROR_BG error: $e', level: 1000, error: e);
