@@ -18,12 +18,17 @@ const DailyStepRecordSchema = CollectionSchema(
   id: 865349736777983272,
   properties: {
     r'date': PropertySchema(id: 0, name: r'date', type: IsarType.dateTime),
+    r'endSteps': PropertySchema(id: 1, name: r'endSteps', type: IsarType.long),
     r'lastUpdateTime': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'lastUpdateTime',
       type: IsarType.dateTime,
     ),
-    r'steps': PropertySchema(id: 2, name: r'steps', type: IsarType.long),
+    r'startSteps': PropertySchema(
+      id: 3,
+      name: r'startSteps',
+      type: IsarType.long,
+    ),
   },
 
   estimateSize: _dailyStepRecordEstimateSize,
@@ -71,8 +76,9 @@ void _dailyStepRecordSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDateTime(offsets[0], object.date);
-  writer.writeDateTime(offsets[1], object.lastUpdateTime);
-  writer.writeLong(offsets[2], object.steps);
+  writer.writeLong(offsets[1], object.endSteps);
+  writer.writeDateTime(offsets[2], object.lastUpdateTime);
+  writer.writeLong(offsets[3], object.startSteps);
 }
 
 DailyStepRecord _dailyStepRecordDeserialize(
@@ -81,12 +87,12 @@ DailyStepRecord _dailyStepRecordDeserialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  final object = DailyStepRecord(
-    date: reader.readDateTime(offsets[0]),
-    lastUpdateTime: reader.readDateTime(offsets[1]),
-    steps: reader.readLongOrNull(offsets[2]) ?? 0,
-  );
+  final object = DailyStepRecord();
+  object.date = reader.readDateTime(offsets[0]);
+  object.endSteps = reader.readLongOrNull(offsets[1]);
   object.id = id;
+  object.lastUpdateTime = reader.readDateTimeOrNull(offsets[2]);
+  object.startSteps = reader.readLongOrNull(offsets[3]);
   return object;
 }
 
@@ -100,9 +106,11 @@ P _dailyStepRecordDeserializeProp<P>(
     case 0:
       return (reader.readDateTime(offset)) as P;
     case 1:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 2:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 3:
+      return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -371,6 +379,79 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'endSteps'),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'endSteps'),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'endSteps', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsGreaterThan(int? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'endSteps',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsLessThan(int? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'endSteps',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  endStepsBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'endSteps',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -426,7 +507,25 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  lastUpdateTimeEqualTo(DateTime value) {
+  lastUpdateTimeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'lastUpdateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'lastUpdateTime'),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  lastUpdateTimeEqualTo(DateTime? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.equalTo(property: r'lastUpdateTime', value: value),
@@ -435,7 +534,7 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  lastUpdateTimeGreaterThan(DateTime value, {bool include = false}) {
+  lastUpdateTimeGreaterThan(DateTime? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
@@ -448,7 +547,7 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  lastUpdateTimeLessThan(DateTime value, {bool include = false}) {
+  lastUpdateTimeLessThan(DateTime? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
@@ -462,8 +561,8 @@ extension DailyStepRecordQueryFilter
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   lastUpdateTimeBetween(
-    DateTime lower,
-    DateTime upper, {
+    DateTime? lower,
+    DateTime? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
@@ -481,21 +580,39 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  stepsEqualTo(int value) {
+  startStepsIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'steps', value: value),
+        const FilterCondition.isNull(property: r'startSteps'),
       );
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  stepsGreaterThan(int value, {bool include = false}) {
+  startStepsIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'startSteps'),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  startStepsEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'startSteps', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  startStepsGreaterThan(int? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'steps',
+          property: r'startSteps',
           value: value,
         ),
       );
@@ -503,12 +620,12 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  stepsLessThan(int value, {bool include = false}) {
+  startStepsLessThan(int? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'steps',
+          property: r'startSteps',
           value: value,
         ),
       );
@@ -516,16 +633,16 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  stepsBetween(
-    int lower,
-    int upper, {
+  startStepsBetween(
+    int? lower,
+    int? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'steps',
+          property: r'startSteps',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
@@ -558,6 +675,20 @@ extension DailyStepRecordQuerySortBy
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByEndSteps() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endSteps', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByEndStepsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endSteps', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
   sortByLastUpdateTime() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'lastUpdateTime', Sort.asc);
@@ -571,16 +702,17 @@ extension DailyStepRecordQuerySortBy
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> sortBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByStartSteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'steps', Sort.asc);
+      return query.addSortBy(r'startSteps', Sort.asc);
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  sortByStepsDesc() {
+  sortByStartStepsDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'steps', Sort.desc);
+      return query.addSortBy(r'startSteps', Sort.desc);
     });
   }
 }
@@ -597,6 +729,20 @@ extension DailyStepRecordQuerySortThenBy
   thenByDateDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'date', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByEndSteps() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endSteps', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByEndStepsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'endSteps', Sort.desc);
     });
   }
 
@@ -626,16 +772,17 @@ extension DailyStepRecordQuerySortThenBy
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByStartSteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'steps', Sort.asc);
+      return query.addSortBy(r'startSteps', Sort.asc);
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  thenByStepsDesc() {
+  thenByStartStepsDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'steps', Sort.desc);
+      return query.addSortBy(r'startSteps', Sort.desc);
     });
   }
 }
@@ -649,15 +796,23 @@ extension DailyStepRecordQueryWhereDistinct
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctByEndSteps() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'endSteps');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
   distinctByLastUpdateTime() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'lastUpdateTime');
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> distinctBySteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctByStartSteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'steps');
+      return query.addDistinctBy(r'startSteps');
     });
   }
 }
@@ -676,16 +831,22 @@ extension DailyStepRecordQueryProperty
     });
   }
 
-  QueryBuilder<DailyStepRecord, DateTime, QQueryOperations>
+  QueryBuilder<DailyStepRecord, int?, QQueryOperations> endStepsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'endSteps');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DateTime?, QQueryOperations>
   lastUpdateTimeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'lastUpdateTime');
     });
   }
 
-  QueryBuilder<DailyStepRecord, int, QQueryOperations> stepsProperty() {
+  QueryBuilder<DailyStepRecord, int?, QQueryOperations> startStepsProperty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'steps');
+      return query.addPropertyName(r'startSteps');
     });
   }
 }

@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
-import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
-import '../models/step_record.dart';
 import '../models/app_state.dart';
 import 'storage_service.dart';
 
@@ -15,8 +13,6 @@ class StepCounterService {
 
   static const String _notificationTitle = 'Step Counter Active';
   static const String _notificationText = 'Counting your steps...';
-  String _currentSessionId = '';
-  bool _isServiceRunning = false;
 
   Future<void> initialize() async {
     try {
@@ -41,63 +37,28 @@ class StepCounterService {
       );
 
       await validateServiceState();
-      developer.log('SERVICE_INITIALIZED running: $_isServiceRunning');
+      developer.log('SERVICE_INITIALIZED running');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
       rethrow;
     }
   }
 
-  // Validate service state on app startup
-  Future<void> validateServiceState() async {
+  Future<bool> validateServiceState() async {
     try {
-      // Check if FlutterForegroundTask service is actually running
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
-
-      // Get current local state
       final appState = await StorageService.instance.getAppState();
+      if (appState.isServiceRunning && isServiceRunning) return true;
 
-      // Sync local state with actual service status
-      if (appState.isServiceRunning != isServiceRunning) {
-        await StorageService.instance.saveAppState(
-          AppState()..isServiceRunning = isServiceRunning,
-        );
-
-        developer.log(
-          'SERVICE_STATE_SYNC: localState=${appState.isServiceRunning} || actualState=$isServiceRunning || name: StepCounter',
-        );
-
-        // If local state says service should be running but it's not,
-        // it means user force-killed the app - just notify user
-        if (appState.isServiceRunning && !isServiceRunning) {
-          await _handleServiceKilled();
-        }
-      }
-
-      _isServiceRunning = isServiceRunning;
+      await StorageService.instance.saveAppState(
+        AppState()..isServiceRunning = isServiceRunning,
+      );
+      await FlutterForegroundTask.stopService();
+      developer.log('SERVICE_STATE_VALIDATION RUNNING: $isServiceRunning');
+      return false;
     } catch (e) {
-      developer.log(
-        'SERVICE_STATE_VALIDATION_ERROR error: $e',
-        level: 1000,
-        error: e,
-      );
-    }
-  }
-
-  // Simplified: No auto-restart - let user manually restart via UI
-  Future<void> _handleServiceKilled() async {
-    try {
-      // Just update notification to inform user
-      await FlutterForegroundTask.updateService(
-        notificationTitle: 'Step Counter - Service Stopped',
-        notificationText: 'Please open the app to restart step counting',
-      );
-
-      developer.log(
-        'SERVICE_KILLED: user_force_killed || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-      );
-    } catch (e) {
-      developer.log('NOTIFICATION_ERROR: $e');
+      developer.log('SERVICE_STATE_VALIDATION_ERROR error: $e');
+      return false;
     }
   }
 
@@ -105,8 +66,8 @@ class StepCounterService {
 
   Future<bool> startService() async {
     try {
-      await validateServiceState();
-      if (_isServiceRunning) {
+      final isValid = await validateServiceState();
+      if (isValid) {
         developer.log('SERVICE_ALREADY_RUNNING');
         return true;
       }
@@ -119,14 +80,11 @@ class StepCounterService {
       );
 
       if (result is ServiceRequestSuccess) {
-        _isServiceRunning = true;
-        _currentSessionId = const Uuid().v4();
-
         // Save new app state - Service layer manages its own state
         final newState = AppState()..isServiceRunning = true;
         await StorageService.instance.saveAppState(newState);
 
-        developer.log('SERVICE_STARTED session_id: $_currentSessionId');
+        developer.log('SERVICE_STARTED');
       }
 
       return result is ServiceRequestSuccess;
@@ -138,8 +96,8 @@ class StepCounterService {
 
   Future<bool> stopService() async {
     try {
-      await validateServiceState();
-      if (!_isServiceRunning) {
+      final isValid = await validateServiceState();
+      if (!isValid) {
         developer.log('SERVICE_NOT_RUNNING');
         return true;
       }
@@ -148,13 +106,10 @@ class StepCounterService {
       final result = await FlutterForegroundTask.stopService();
 
       if (result is ServiceRequestSuccess) {
-        _isServiceRunning = false;
-
         // Update app state
         final updatedState = AppState()..isServiceRunning = false;
         await StorageService.instance.saveAppState(updatedState);
-
-        developer.log('SERVICE_STOPPED session_id: $_currentSessionId');
+        developer.log('SERVICE_STOPPED');
       }
 
       return result is ServiceRequestSuccess;
@@ -163,9 +118,6 @@ class StepCounterService {
       return false;
     }
   }
-
-  bool get isServiceRunning => _isServiceRunning;
-  String get currentSessionId => _currentSessionId;
 }
 
 @pragma('vm:entry-point')
@@ -175,41 +127,24 @@ Future<void> startCallback() async {
 
 class StepCounterTaskHandler extends TaskHandler {
   StreamSubscription? _stepSubscription;
-  DateTime? _lastResetDate;
-  int? _baselineSteps; // Steps at service start (device boot count)
-  int _previousDailySteps = 0; // Steps from previous session
+  int _lastDeviceSteps = 0;
+  final _storageService = StorageService.instance;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    // Service started - update local state
     developer.log('SERVICE_START: name: $starter');
-
-    // Initialize StorageService in this isolate
-    try {
-      await StorageService.instance.initialize();
-      developer.log('STORAGE_SERVICE_INITIALIZED_IN_ISOLATE');
-    } catch (e) {
-      developer.log('STORAGE_INIT_ERROR_IN_ISOLATE: $e', level: 1000, error: e);
-    }
-
+    await _storageService.initialize();
     await _updateServiceState(true);
-    developer.log(
-      'SERVICE_START: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
-    );
-
-    // Begin step counting in background isolate
     await _beginBackgroundStepCounting();
   }
 
   @override
-  void onRepeatEvent(DateTime timestamp) {
-    // This will be called every 5 seconds
-    // The main step counting logic is handled in the main service
-  }
+  void onRepeatEvent(DateTime timestamp) {}
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
     // Service destroyed - update local state
+    await _updateLastStepCount();
     await _updateServiceState(false);
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
@@ -222,127 +157,89 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> _updateServiceState(bool isRunning) async {
     try {
       final updatedState = AppState()..isServiceRunning = isRunning;
-      await StorageService.instance.saveAppState(updatedState);
+      await _storageService.saveAppState(updatedState);
     } catch (e) {
       developer.log('SERVICE_STATE_UPDATE_ERROR: $e', level: 1000, error: e);
     }
   }
 
+  Future<void> _updateLastStepCount() async {
+    try {
+      final dateKey = _convertDayToKey(DateTime.now());
+      final lastStepRecord = await _storageService.getLastStepRecord(dateKey);
+
+      if (lastStepRecord == null) return;
+
+      final updatedRecord = lastStepRecord
+        ..endSteps = _lastDeviceSteps
+        ..lastUpdateTime = DateTime.now();
+
+      await _storageService.addDailyStepRecord(updatedRecord);
+    } catch (e) {
+      developer.log('LAST_STEP_COUNT_UPDATE_ERROR: $e', level: 1000, error: e);
+    }
+  }
+
+  DateTime _convertDayToKey(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
   Future<void> _beginBackgroundStepCounting() async {
     try {
-      final now = DateTime.now();
-      final todayDate = DateTime(now.year, now.month, now.day);
-
-      // Check if need to reset for new day
-      if (_lastResetDate == null || !_isSameDay(_lastResetDate!, todayDate)) {
-        await _resetDailyCounter(todayDate);
-        _previousDailySteps = 0; // Start fresh for new day
-        _baselineSteps = null; // Will be set on first step event
-      } else {
-        // Same day - load existing steps
-        final todayRecord = await StorageService.instance.getTodayStepRecord();
-        _previousDailySteps = todayRecord?.steps ?? 0;
-      }
-
-      developer.log(
-        'STEP_COUNTING_INIT: date=${todayDate.toIso8601String().split('T')[0]} || previousSteps=$_previousDailySteps',
-      );
+      final todayDate = _convertDayToKey(DateTime.now());
 
       _stepSubscription = Pedometer().stepCountStream().listen(
         (steps) async {
-          await _handleDailyStepChange(steps);
+          developer.log('PEDOMETER_STEP_COUNT: $steps');
+          _lastDeviceSteps = steps;
+          await _handleDailyStepChange(steps, todayDate);
         },
         onError: (error) {
-          developer.log(
-            'PEDOMETER_ERROR: ${error.toString()} || timestamp=${DateTime.now().toIso8601String()} || name: StepCounter',
-            level: 1000,
-            error: error,
-          );
+          developer.log('PEDOMETER_ERROR: ${error.toString()} ');
         },
         cancelOnError: false,
       );
-
-      developer.log('STEP_COUNTING_STARTED_BACKGROUND');
     } catch (e) {
       developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
     }
   }
 
-  Future<void> _handleDailyStepChange(int deviceSteps) async {
+  Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
     try {
-      final now = DateTime.now();
-      final currentDate = DateTime(now.year, now.month, now.day);
-
-      // Check if day changed while service running
-      if (_lastResetDate != null && !_isSameDay(_lastResetDate!, currentDate)) {
-        developer.log('DAY_CHANGED_DETECTED: resetting for new day');
-        await _resetDailyCounter(currentDate);
-        _previousDailySteps = 0;
-        _baselineSteps = null; // Reset baseline for new day
-      }
-
-      // Initialize baseline on first step event
-      if (_baselineSteps == null) {
-        _baselineSteps = deviceSteps;
-        developer.log('BASELINE_SET: baselineSteps=$_baselineSteps');
-      }
-
-      // Calculate steps in this session
-      final sessionSteps = deviceSteps - _baselineSteps!;
-
-      // Calculate total daily steps
-      final totalDailySteps = _previousDailySteps + sessionSteps;
-
-      final todayRecord = await StorageService.instance.getOrCreateTodayRecord(
-        currentDate,
+      final todayRecord = await _storageService.getOrCreateTodayRecord(
+        date,
+        deviceSteps,
       );
 
-      final updatedRecord = DailyStepRecord(
-        date: todayRecord.date,
-        steps: totalDailySteps,
-        lastUpdateTime: DateTime.now(),
-      );
+      final updatedRecord = todayRecord
+        ..endSteps = deviceSteps
+        ..lastUpdateTime = DateTime.now();
 
-      await StorageService.instance.addDailyStepRecord(updatedRecord);
-
+      await _storageService.addDailyStepRecord(updatedRecord);
       await _updateNotification(updatedRecord.steps);
-
-      developer.log(
-        'DAILY_STEP_CHANGE_BG: deviceSteps=$deviceSteps || sessionSteps=$sessionSteps || totalSteps=$totalDailySteps || date=${currentDate.toIso8601String().split('T')[0]} || name: StepCounter',
-      );
     } catch (e) {
-      developer.log(
-        'STEP_HANDLE_ERROR_BG error: $e deviceSteps: $deviceSteps',
-        level: 1000,
-        error: e,
-      );
+      developer.log('STEP_HANDLE_ERROR_BG error: $e deviceSteps: $deviceSteps');
     }
   }
 
   Future<void> _resetDailyCounter(DateTime todayDate) async {
-    try {
-      _lastResetDate = todayDate;
+    // try {
+    //   _lastResetDate = todayDate;
 
-      // Create new record for the new day
-      final newRecord = DailyStepRecord(
-        date: todayDate,
-        steps: 0,
-        lastUpdateTime: DateTime.now(),
-      );
-      await StorageService.instance.addDailyStepRecord(newRecord);
+    //   // Create new record for the new day
+    //   final newRecord = DailyStepRecord(
+    //     date: todayDate,
+    //     steps: 0,
+    //     lastUpdateTime: DateTime.now(),
+    //   );
+    //   await StorageService.instance.addDailyStepRecord(newRecord);
 
-      developer.log(
-        'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || created_new_record || name: StepCounter',
-      );
-    } catch (e) {
-      developer.log('DAILY_RESET_ERROR_BG error: $e', level: 1000, error: e);
-    }
-  }
-
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
+    //   developer.log(
+    //     'DAILY_RESET_BG: date=${todayDate.toIso8601String().split('T')[0]} || created_new_record || name: StepCounter',
+    //   );
+    // } catch (e) {
+    //   developer.log('DAILY_RESET_ERROR_BG error: $e', level: 1000, error: e);
+    // }
   }
 
   Future<void> _updateNotification(int steps) async {
@@ -356,6 +253,12 @@ class StepCounterTaskHandler extends TaskHandler {
       developer.log('NOTIFICATION_UPDATE_ERROR_BG error: $e');
     }
   }
+
+  // bool _isSameDay(DateTime date1, DateTime date2) {
+  //   return date1.year == date2.year &&
+  //       date1.month == date2.month &&
+  //       date1.day == date2.day;
+  // }
 
   String _formatTime(DateTime dateTime) {
     final hour = dateTime.hour.toString().padLeft(2, '0');

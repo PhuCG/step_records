@@ -16,13 +16,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppState _appState = AppState();
   DailyStepRecord? _todayRecord;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initializeApp();
     // Subscribe to app state changes via database watcher for live UI updates
     StorageService.instance.watchAppState().listen((appState) async {
       if (mounted && appState != null) {
@@ -42,23 +40,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         } else {}
       }
     });
-  }
-
-  Future<void> _initializeApp() async {
-    try {
-      // Load initial data
-      _appState = await StorageService.instance.getAppState();
-      _todayRecord = await StorageService.instance.getTodayStepRecord();
-
-      setState(() {
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorSnackBar('Failed to initialize app: $e');
-    }
   }
 
   @override
@@ -146,10 +127,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     final todaySteps = _todayRecord?.steps ?? 0;
 
     return Scaffold(

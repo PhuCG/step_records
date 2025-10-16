@@ -33,33 +33,34 @@ class StorageService {
     });
   }
 
-  Future<DailyStepRecord?> getTodayStepRecord() async {
-    final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
-
-    return await _isar!.dailyStepRecords
-        .filter()
-        .dateEqualTo(todayDate)
+  Future<DailyStepRecord?> getLastStepRecord(DateTime date) async {
+    final stepRecord = await _isar?.dailyStepRecords
+        .where()
+        .dateEqualTo(date)
         .findFirst();
+
+    if (stepRecord != null) return stepRecord;
+
+    return await _isar?.dailyStepRecords.where().findFirst();
   }
 
-  Future<DailyStepRecord> getOrCreateTodayRecord(DateTime date) async {
-    final todayDate = DateTime(date.year, date.month, date.day);
-
+  Future<DailyStepRecord> getOrCreateTodayRecord(
+    DateTime dateKey,
+    int? startSteps,
+  ) async {
     // First, try to find existing record
     final existing = await _isar?.dailyStepRecords
         .filter()
-        .dateEqualTo(todayDate)
+        .dateEqualTo(dateKey)
         .findFirst();
 
     if (existing != null) return existing;
 
     // Create new record for today if not exists
-    final newRecord = DailyStepRecord(
-      date: todayDate,
-      steps: 0,
-      lastUpdateTime: DateTime.now(),
-    );
+    final newRecord = DailyStepRecord()
+      ..date = dateKey
+      ..startSteps = startSteps
+      ..lastUpdateTime = DateTime.now();
 
     await _isar?.writeTxn(() async {
       await _isar?.dailyStepRecords.put(newRecord);
@@ -69,11 +70,13 @@ class StorageService {
   }
 
   // Watch daily step records for UI updates
-  Stream<List<DailyStepRecord>> watchTodaySteps() {
+  Stream<List<DailyStepRecord>> watchTodaySteps() async* {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    return _isar!.dailyStepRecords
+    await getOrCreateTodayRecord(todayDate, null);
+
+    yield* _isar!.dailyStepRecords
         .filter()
         .dateEqualTo(todayDate)
         .watch(fireImmediately: true);
@@ -95,10 +98,10 @@ class StorageService {
   }
 
   // Watch app state changes
-  Stream<AppState?> watchAppState() {
-    return _isar!.appStates
+  Stream<AppState?> watchAppState() async* {
+    yield* _isar!.appStates
         .where()
-        .idEqualTo(0) // Single app state record
+        .idEqualTo(0)
         .watch(fireImmediately: true)
         .map((list) => list.isNotEmpty ? list.first : null);
   }

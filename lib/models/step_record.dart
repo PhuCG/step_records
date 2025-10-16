@@ -8,28 +8,9 @@ class DailyStepRecord {
 
   @Index()
   late DateTime date;
-  late int steps;
-  late DateTime lastUpdateTime;
+  int? startSteps;
+  int? endSteps;
+  DateTime? lastUpdateTime;
 
-  DailyStepRecord({
-    required this.date,
-    this.steps = 0,
-    required this.lastUpdateTime,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'date': date.toIso8601String(),
-      'steps': steps,
-      'lastUpdateTime': lastUpdateTime.toIso8601String(),
-    };
-  }
-
-  factory DailyStepRecord.fromJson(Map<String, dynamic> json) {
-    return DailyStepRecord(
-      date: DateTime.parse(json['date']),
-      steps: json['steps'] ?? 0,
-      lastUpdateTime: DateTime.parse(json['lastUpdateTime']),
-    );
-  }
+  int get steps => (endSteps ?? 0) - (startSteps ?? 0);
 }
