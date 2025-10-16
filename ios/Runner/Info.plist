@@ -47,10 +47,13 @@
 	<true/>
 	<key>NSMotionUsageDescription</key>
 	<string>This app needs access to motion sensors to count your steps.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We need your permission to show notifications for the foreground service.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>background-processing</string>
 		<string>background-fetch</string>
+		<string>remote-notification</string>
 	</array>
 </dict>
 </plist>

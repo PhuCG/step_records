@@ -25,7 +25,7 @@ class StepCounterService {
           priority: NotificationPriority.LOW,
         ),
         iosNotificationOptions: IOSNotificationOptions(
-          showNotification: true,
+          showNotification: false,
           playSound: false,
         ),
         foregroundTaskOptions: ForegroundTaskOptions(

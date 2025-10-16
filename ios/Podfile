@@ -45,6 +45,8 @@ post_install do |installer|
              '$(inherited)',
              ## dart: PermissionGroup.sensors
              'PERMISSION_SENSORS=1',
+             ## dart: PermissionGroup.notification
+             'PERMISSION_NOTIFICATIONS=1',
              ]
          end
          ## END OF WHAT YOU NEED TO ADD
