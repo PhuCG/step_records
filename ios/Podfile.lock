@@ -17,8 +17,6 @@ PODS:
   - permission_handler_apple (9.3.0):
     - Flutter
   - ReachabilitySwift (5.2.4)
-  - share_plus (0.0.1):
-    - Flutter
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -32,7 +30,6 @@ DEPENDENCIES:
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - pedometer_2 (from `.symlinks/plugins/pedometer_2/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
-  - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
@@ -56,8 +53,6 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/pedometer_2/ios"
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
-  share_plus:
-    :path: ".symlinks/plugins/share_plus/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
@@ -71,7 +66,6 @@ SPEC CHECKSUMS:
   pedometer_2: dbedf4f42eb698358d1f6231ef97e29ae6b0411f
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   ReachabilitySwift: 32793e867593cfc1177f5d16491e3a197d2fccda
-  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
 
 PODFILE CHECKSUM: d73121d805352bc6ec2d99812a1c192fd97dff46

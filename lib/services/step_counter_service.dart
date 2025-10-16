@@ -206,7 +206,6 @@ class StepCounterTaskHandler extends TaskHandler {
 
   Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
     try {
-      // check if today is the same as the date passed in, if not, reset the daily counter
       final verifiedDate = await _resetDailyCounter(date, deviceSteps);
 
       final todayRecord = await _storageService.getOrCreateTodayRecord(
@@ -243,12 +242,6 @@ class StepCounterTaskHandler extends TaskHandler {
       developer.log('NOTIFICATION_UPDATE_ERROR_BG error: $e');
     }
   }
-
-  // bool _isSameDay(DateTime date1, DateTime date2) {
-  //   return date1.year == date2.year &&
-  //       date1.month == date2.month &&
-  //       date1.day == date2.day;
-  // }
 
   String _formatTime(DateTime dateTime) {
     final hour = dateTime.hour.toString().padLeft(2, '0');
