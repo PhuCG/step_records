@@ -17,7 +17,7 @@ class PermissionService {
 
   // Required permissions for iOS
   static const List<Permission> _iosPermissions = [
-    Permission.notification,
+    // Permission.notification,
     Permission.sensors,
   ];
 

@@ -54,7 +54,18 @@ class StorageService {
         .dateEqualTo(dateKey)
         .findFirst();
 
-    if (existing != null) return existing;
+    if (existing != null) {
+      if (existing.startSteps == null && startSteps != null) {
+        final updatedRecord = existing
+          ..startSteps = startSteps
+          ..lastUpdateTime = DateTime.now();
+        await _isar?.writeTxn(() async {
+          await _isar?.dailyStepRecords.put(updatedRecord);
+        });
+        return updatedRecord;
+      }
+      return existing;
+    }
 
     // Create new record for today if not exists
     final newRecord = DailyStepRecord()
