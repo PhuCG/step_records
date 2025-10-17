@@ -134,6 +134,13 @@ class StorageService {
         .watch(fireImmediately: true);
   }
 
+  // Watch all daily step records sorted by date descending
+  Stream<List<DailyStepRecord>> watchAllSteps() async* {
+    yield* _isar!.dailyStepRecords.where().sortByDateDesc().watch(
+      fireImmediately: true,
+    );
+  }
+
   // App State
   Future<void> saveAppState(AppState state) async {
     await _isar?.writeTxn(() async {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:test_abc/services/storage_service.dart';
-import 'screens/home_screen.dart';
+import 'screens/main_screen.dart';
 import 'services/step_counter_service.dart';
 
 void main() async {
@@ -30,7 +30,7 @@ class StepCounterApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const MainScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
