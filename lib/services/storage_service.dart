@@ -41,7 +41,18 @@ class StorageService {
 
     if (stepRecord != null) return stepRecord;
 
-    return await _isar?.dailyStepRecords.where().findFirst();
+    return await getPreviousStepRecord(date);
+  }
+
+  // Get the previous step record (the record before the given date)
+  Future<DailyStepRecord?> getPreviousStepRecord(DateTime currentDate) async {
+    final previousRecord = await _isar?.dailyStepRecords
+        .filter()
+        .dateLessThan(currentDate)
+        .sortByDateDesc()
+        .findFirst();
+
+    return previousRecord;
   }
 
   Future<DailyStepRecord> getOrCreateTodayRecord(
@@ -67,6 +78,9 @@ class StorageService {
       return existing;
     }
 
+    // Before creating new record, update previous day's endSteps if needed
+    await _updatePreviousDayEndSteps(dateKey, startSteps);
+
     // Create new record for today if not exists
     final newRecord = DailyStepRecord()
       ..date = dateKey
@@ -78,6 +92,29 @@ class StorageService {
     });
 
     return newRecord;
+  }
+
+  // Update previous day's endSteps when creating a new day record
+  Future<void> _updatePreviousDayEndSteps(
+    DateTime currentDate,
+    int? currentDeviceSteps,
+  ) async {
+    if (currentDeviceSteps == null) return;
+
+    final previousRecord = await getPreviousStepRecord(currentDate);
+    if (previousRecord == null) return;
+
+    // Only update if current device steps > previous endSteps
+    final previousEndSteps = previousRecord.endSteps ?? 0;
+    if (currentDeviceSteps > previousEndSteps) {
+      final updatedPreviousRecord = previousRecord
+        ..endSteps = currentDeviceSteps
+        ..lastUpdateTime = DateTime.now();
+
+      await _isar?.writeTxn(() async {
+        await _isar?.dailyStepRecords.put(updatedPreviousRecord);
+      });
+    }
   }
 
   // Watch daily step records for UI updates

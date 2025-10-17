@@ -224,11 +224,27 @@ class StepCounterTaskHandler extends TaskHandler {
     }
   }
 
-  Future<DateTime> _resetDailyCounter(DateTime today, int startSteps) async {
-    final now = _convertDayToKey(DateTime.now());
-    if (today == now) return now;
-    await _storageService.getOrCreateTodayRecord(now, startSteps);
-    return now;
+  Future<DateTime> _resetDailyCounter(
+    DateTime currentTrackedDate,
+    int deviceSteps,
+  ) async {
+    final actualCurrentDate = _convertDayToKey(DateTime.now());
+
+    // If we're still on the same day, no reset needed
+    if (currentTrackedDate == actualCurrentDate) return actualCurrentDate;
+
+    // Day has changed - update previous day's endSteps and create new record
+    developer.log(
+      'DAY_CHANGED: from $currentTrackedDate to $actualCurrentDate, deviceSteps: $deviceSteps',
+    );
+
+    // This will handle updating previous day's endSteps and creating new record
+    await _storageService.getOrCreateTodayRecord(
+      actualCurrentDate,
+      deviceSteps,
+    );
+
+    return actualCurrentDate;
   }
 
   Future<void> _updateNotification(int steps) async {
