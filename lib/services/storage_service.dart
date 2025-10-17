@@ -66,7 +66,11 @@ class StorageService {
         .findFirst();
 
     if (existing != null) {
+      // If existing record has no startSteps but we have startSteps now
       if (existing.startSteps == null && startSteps != null) {
+        // Update previous day's endSteps before setting startSteps
+        await _updatePreviousDayEndSteps(dateKey, startSteps);
+
         final updatedRecord = existing
           ..startSteps = startSteps
           ..lastUpdateTime = DateTime.now();
