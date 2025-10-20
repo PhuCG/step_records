@@ -212,7 +212,7 @@ class StepCounterTaskHandler extends TaskHandler {
         verifiedDate,
         deviceSteps,
       );
-
+      if (deviceSteps == 0) return;
       final updatedRecord = todayRecord
         ..endSteps = deviceSteps
         ..lastUpdateTime = DateTime.now();
