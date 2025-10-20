@@ -249,7 +249,7 @@ class StepCounterTaskHandler extends TaskHandler {
 
   Future<void> _updateNotification(int steps) async {
     try {
-      FlutterForegroundTask.updateService(
+      await FlutterForegroundTask.updateService(
         notificationTitle: 'Step Counter Active',
         notificationText:
             '${NumberFormat('#,###').format(steps)} steps today • Last: ${_formatTime(DateTime.now())}',
