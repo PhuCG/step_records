@@ -51,8 +51,8 @@
 	<string>We need your permission to show notifications for the foreground service.</string>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>background-processing</string>
-		<string>background-fetch</string>
+		<string>processing</string>
+		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
 </dict>

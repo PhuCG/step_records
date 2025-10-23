@@ -185,7 +185,11 @@ class MainActivity : FlutterActivity()
     <!-- Notification permission (Required for flutter_foreground_task) -->
     <key>NSUserNotificationUsageDescription</key>
     <string>We need your permission to show notifications for the foreground service.</string>
-    
+    <!-- Flutter forground -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+      <string>com.pravera.flutter_foreground_task.refresh</string>
+    </array>
     <!-- Background Modes (Required for flutter_foreground_task) -->
     <key>UIBackgroundModes</key>
     <array>
