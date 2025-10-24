@@ -55,6 +55,20 @@ class StorageService {
     return previousRecord;
   }
 
+  // Get list of step records by date range (from and to inclusive)
+  Future<List<DailyStepRecord>> getStepRecordsByDateRange(
+    DateTime fromDate,
+    DateTime toDate,
+  ) async {
+    final records = await _isar?.dailyStepRecords
+        .filter()
+        .dateBetween(fromDate, toDate)
+        .sortByDate()
+        .findAll();
+
+    return records ?? [];
+  }
+
   Future<DailyStepRecord> getOrCreateTodayRecord(
     DateTime dateKey,
     int? startSteps,
