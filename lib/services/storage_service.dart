@@ -120,6 +120,7 @@ class StorageService {
     await _isar?.writeTxn(() async {
       final item = await _isar?.appStates.where().findFirst();
       item?.isServiceRunning = state.isServiceRunning;
+      item?.startEventTime = state.startEventTime;
       if (item != null) await _isar?.appStates.put(item);
     });
   }
@@ -137,15 +138,5 @@ class StorageService {
         .idEqualTo(0)
         .watch(fireImmediately: true)
         .map((list) => list.isNotEmpty ? list.first : null);
-  }
-
-  // Clear all data
-  Future<void> clearAllData() async {
-    await _isar?.dailyStepRecords.clear();
-    await _isar?.writeTxn(() async {
-      // Keep AppState but reset it
-      final appState = AppState();
-      await _isar?.appStates.put(appState);
-    });
   }
 }

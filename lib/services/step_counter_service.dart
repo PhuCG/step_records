@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:intl/intl.dart';
-import '../models/app_state.dart';
 import '../models/step_record.dart';
 import 'storage_service.dart';
 
@@ -15,6 +14,8 @@ class StepCounterService {
 
   static const String _notificationTitle = 'Step Counter Active';
   static const String _notificationText = 'Counting your steps...';
+
+  final _storageService = StorageService.instance;
 
   Future<void> initialize() async {
     try {
@@ -51,7 +52,7 @@ class StepCounterService {
   Future<void> _updatePreviousStep() async {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
-    var record = await StorageService.instance.getPreviousStepRecord(todayDate);
+    var record = await _storageService.getPreviousStepRecord(todayDate);
     if (record == null || record.date.isAtSameMomentAs(todayDate)) return;
     final steps = await Pedometer().getStepCount(
       from: todayDate,
@@ -65,11 +66,11 @@ class StepCounterService {
     );
     if (steps < (record.steps ?? 0)) return;
     record = record..steps = steps;
-    await StorageService.instance.addDailyStepRecord(record);
+    await _storageService.addDailyStepRecord(record);
   }
 
   Future<void> _updateMissDailyRecord() async {
-    final appState = await StorageService.instance.getAppState();
+    final appState = await _storageService.getAppState();
     final startEventTime = appState.startEventTime;
     if (startEventTime == null) return;
 
@@ -77,7 +78,6 @@ class StepCounterService {
       final today = DateTime.now();
       final todayDate = DateTime(today.year, today.month, today.day);
 
-      // Giới hạn chỉ lấy data trong 2 tuần gần nhất
       final twoWeeksAgo = todayDate.subtract(const Duration(days: 14));
 
       final startDate = DateTime(
@@ -92,8 +92,10 @@ class StepCounterService {
 
       if (effectiveStartDate.isAtSameMomentAs(todayDate)) return;
 
-      final existingRecords = await StorageService.instance
-          .getStepRecordsByDateRange(effectiveStartDate, todayDate);
+      final existingRecords = await _storageService.getStepRecordsByDateRange(
+        effectiveStartDate,
+        todayDate,
+      );
 
       final existingDates = existingRecords.map((record) {
         return DateTime(record.date.year, record.date.month, record.date.day);
@@ -136,7 +138,7 @@ class StepCounterService {
             ..steps = steps
             ..lastUpdateTime = DateTime.now();
 
-          await StorageService.instance.addDailyStepRecord(newRecord);
+          await _storageService.addDailyStepRecord(newRecord);
         } catch (e) {
           developer.log(
             'ERROR_RECOVERING_DATE: ${DateFormat('yyyy-MM-dd').format(missingDate)} - $e',
@@ -157,9 +159,9 @@ class StepCounterService {
   Future<bool> _validateServiceState() async {
     try {
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
-      var appState = await StorageService.instance.getAppState();
+      var appState = await _storageService.getAppState();
       if (appState.isServiceRunning && isServiceRunning) return true;
-      await StorageService.instance.saveAppState(
+      await _storageService.saveAppState(
         appState..isServiceRunning = isServiceRunning,
       );
       await FlutterForegroundTask.stopService();
@@ -186,12 +188,12 @@ class StepCounterService {
 
       if (result is ServiceRequestSuccess) {
         // Save new app state - Service layer manages its own state
-        var newState = await StorageService.instance.getAppState();
+        var newState = await _storageService.getAppState();
         newState = newState..isServiceRunning = true;
         if (newState.startEventTime == null) {
           newState = newState..startEventTime = DateTime.now();
         }
-        await StorageService.instance.saveAppState(newState);
+        await _storageService.saveAppState(newState);
 
         developer.log('SERVICE_STARTED');
       }
@@ -216,8 +218,9 @@ class StepCounterService {
 
       if (result is ServiceRequestSuccess) {
         // Update app state
-        final updatedState = AppState()..isServiceRunning = false;
-        await StorageService.instance.saveAppState(updatedState);
+        var appState = await _storageService.getAppState();
+        appState = appState..isServiceRunning = false;
+        await _storageService.saveAppState(appState);
         developer.log('SERVICE_STOPPED');
       }
 
@@ -272,8 +275,12 @@ class StepCounterTaskHandler extends TaskHandler {
   }
 
   Future<void> _updateServiceState(bool isRunning) async {
-    final updatedState = AppState()..isServiceRunning = isRunning;
-    await _storageService.saveAppState(updatedState);
+    var appState = await _storageService.getAppState();
+    appState = appState..isServiceRunning = isRunning;
+    if (appState.startEventTime == null) {
+      appState = appState..startEventTime = DateTime.now();
+    }
+    await _storageService.saveAppState(appState);
   }
 
   Future<void> _updateOnDestroy() async {
