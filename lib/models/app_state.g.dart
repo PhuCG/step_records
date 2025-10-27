@@ -22,6 +22,11 @@ const AppStateSchema = CollectionSchema(
       name: r'isServiceRunning',
       type: IsarType.bool,
     ),
+    r'startEventTime': PropertySchema(
+      id: 1,
+      name: r'startEventTime',
+      type: IsarType.dateTime,
+    ),
   },
 
   estimateSize: _appStateEstimateSize,
@@ -55,6 +60,7 @@ void _appStateSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeBool(offsets[0], object.isServiceRunning);
+  writer.writeDateTime(offsets[1], object.startEventTime);
 }
 
 AppState _appStateDeserialize(
@@ -66,6 +72,7 @@ AppState _appStateDeserialize(
   final object = AppState();
   object.id = id;
   object.isServiceRunning = reader.readBool(offsets[0]);
+  object.startEventTime = reader.readDateTimeOrNull(offsets[1]);
   return object;
 }
 
@@ -78,6 +85,8 @@ P _appStateDeserializeProp<P>(
   switch (propertyId) {
     case 0:
       return (reader.readBool(offset)) as P;
+    case 1:
+      return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -240,6 +249,79 @@ extension AppStateQueryFilter
       );
     });
   }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  startEventTimeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'startEventTime'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  startEventTimeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'startEventTime'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> startEventTimeEqualTo(
+    DateTime? value,
+  ) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'startEventTime', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  startEventTimeGreaterThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'startEventTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  startEventTimeLessThan(DateTime? value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'startEventTime',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> startEventTimeBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'startEventTime',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
 }
 
 extension AppStateQueryObject
@@ -258,6 +340,18 @@ extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
   QueryBuilder<AppState, AppState, QAfterSortBy> sortByIsServiceRunningDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isServiceRunning', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByStartEventTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startEventTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByStartEventTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startEventTime', Sort.desc);
     });
   }
 }
@@ -287,6 +381,18 @@ extension AppStateQuerySortThenBy
       return query.addSortBy(r'isServiceRunning', Sort.desc);
     });
   }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByStartEventTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startEventTime', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByStartEventTimeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'startEventTime', Sort.desc);
+    });
+  }
 }
 
 extension AppStateQueryWhereDistinct
@@ -294,6 +400,12 @@ extension AppStateQueryWhereDistinct
   QueryBuilder<AppState, AppState, QDistinct> distinctByIsServiceRunning() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isServiceRunning');
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QDistinct> distinctByStartEventTime() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'startEventTime');
     });
   }
 }
@@ -309,6 +421,12 @@ extension AppStateQueryProperty
   QueryBuilder<AppState, bool, QQueryOperations> isServiceRunningProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isServiceRunning');
+    });
+  }
+
+  QueryBuilder<AppState, DateTime?, QQueryOperations> startEventTimeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'startEventTime');
     });
   }
 }

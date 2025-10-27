@@ -69,40 +69,22 @@ class StorageService {
     return records ?? [];
   }
 
-  Future<DailyStepRecord> getOrCreateTodayRecord(
-    DateTime dateKey,
-    int? startSteps,
-  ) async {
+  Future<DailyStepRecord> getTodayRecord(DateTime dateKey) async {
     // First, try to find existing record
     final existing = await _isar?.dailyStepRecords
         .filter()
         .dateEqualTo(dateKey)
         .findFirst();
 
-    if (existing != null) {
-      // If existing record has no startSteps but we have startSteps now
-      if (existing.startSteps == null && startSteps != null) {
-        // Update previous day's endSteps before setting startSteps
-        await _updatePreviousDayEndSteps(dateKey, startSteps);
+    if (existing != null) return existing;
+    return await _createRecord(dateKey);
+  }
 
-        final updatedRecord = existing
-          ..startSteps = startSteps
-          ..lastUpdateTime = DateTime.now();
-        await _isar?.writeTxn(() async {
-          await _isar?.dailyStepRecords.put(updatedRecord);
-        });
-        return updatedRecord;
-      }
-      return existing;
-    }
-
-    // Before creating new record, update previous day's endSteps if needed
-    await _updatePreviousDayEndSteps(dateKey, startSteps);
-
+  Future<DailyStepRecord> _createRecord(DateTime date, {int? steps}) async {
     // Create new record for today if not exists
     final newRecord = DailyStepRecord()
-      ..date = dateKey
-      ..startSteps = startSteps
+      ..date = date
+      ..steps = steps
       ..lastUpdateTime = DateTime.now();
 
     await _isar?.writeTxn(() async {
@@ -112,35 +94,13 @@ class StorageService {
     return newRecord;
   }
 
-  // Update previous day's endSteps when creating a new day record
-  Future<void> _updatePreviousDayEndSteps(
-    DateTime currentDate,
-    int? currentDeviceSteps,
-  ) async {
-    if (currentDeviceSteps == null) return;
-
-    final previousRecord = await getPreviousStepRecord(currentDate);
-    if (previousRecord == null) return;
-
-    // Only update if current device steps > previous endSteps
-    final previousEndSteps = previousRecord.endSteps ?? 0;
-    if (currentDeviceSteps > previousEndSteps) {
-      final updatedPreviousRecord = previousRecord
-        ..endSteps = currentDeviceSteps
-        ..lastUpdateTime = DateTime.now();
-
-      await _isar?.writeTxn(() async {
-        await _isar?.dailyStepRecords.put(updatedPreviousRecord);
-      });
-    }
-  }
-
   // Watch daily step records for UI updates
   Stream<List<DailyStepRecord>> watchTodaySteps() async* {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    await getOrCreateTodayRecord(todayDate, null);
+    // Ensure today's record exists
+    await getTodayRecord(todayDate);
 
     yield* _isar!.dailyStepRecords
         .filter()

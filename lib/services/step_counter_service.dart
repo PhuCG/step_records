@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:intl/intl.dart';
@@ -36,7 +37,7 @@ class StepCounterService {
         ),
       );
 
-      await validateServiceState();
+      await _validateServiceState();
       developer.log('SERVICE_INITIALIZED running');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
@@ -44,29 +45,24 @@ class StepCounterService {
     }
   }
 
-  Future<bool> validateServiceState() async {
+  Future<bool> _validateServiceState() async {
     try {
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
-      final appState = await StorageService.instance.getAppState();
+      var appState = await StorageService.instance.getAppState();
       if (appState.isServiceRunning && isServiceRunning) return true;
-
       await StorageService.instance.saveAppState(
-        AppState()..isServiceRunning = isServiceRunning,
+        appState..isServiceRunning = isServiceRunning,
       );
       await FlutterForegroundTask.stopService();
-      developer.log('SERVICE_STATE_VALIDATION RUNNING: $isServiceRunning');
       return false;
     } catch (e) {
-      developer.log('SERVICE_STATE_VALIDATION_ERROR error: $e');
       return false;
     }
   }
 
-  // Removed unused notification methods
-
   Future<bool> startService() async {
     try {
-      final isValid = await validateServiceState();
+      final isValid = await _validateServiceState();
       if (isValid) {
         developer.log('SERVICE_ALREADY_RUNNING');
         return true;
@@ -81,7 +77,11 @@ class StepCounterService {
 
       if (result is ServiceRequestSuccess) {
         // Save new app state - Service layer manages its own state
-        final newState = AppState()..isServiceRunning = true;
+        var newState = await StorageService.instance.getAppState();
+        newState = newState..isServiceRunning = true;
+        if (newState.startEventTime == null) {
+          newState = newState..startEventTime = DateTime.now();
+        }
         await StorageService.instance.saveAppState(newState);
 
         developer.log('SERVICE_STARTED');
@@ -96,7 +96,7 @@ class StepCounterService {
 
   Future<bool> stopService() async {
     try {
-      final isValid = await validateServiceState();
+      final isValid = await _validateServiceState();
       if (!isValid) {
         developer.log('SERVICE_NOT_RUNNING');
         return true;
@@ -130,6 +130,14 @@ class StepCounterTaskHandler extends TaskHandler {
   int _lastDeviceSteps = 0;
   final _storageService = StorageService.instance;
 
+  // Debounce với counter
+  Timer? _debounceTimer;
+  int _callCounter = 0;
+  static const int _maxCallsBeforeForce = 5;
+  static const Duration _debounceDuration = Duration(seconds: 2);
+
+  final pedoInstance = Pedometer();
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     developer.log('SERVICE_START: name: $starter');
@@ -144,26 +152,22 @@ class StepCounterTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
     // Service destroyed - update local state
-    await _updateLastStepCount();
+    await _updateOnDestroy();
     await _updateServiceState(false);
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
     _stepSubscription = null;
-    developer.log(
-      'SERVICE_DESTROY: timestamp=${timestamp.toIso8601String()} || name: StepCounter',
-    );
+    // Cancel debounce timer if active
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
   }
 
   Future<void> _updateServiceState(bool isRunning) async {
-    try {
-      final updatedState = AppState()..isServiceRunning = isRunning;
-      await _storageService.saveAppState(updatedState);
-    } catch (e) {
-      developer.log('SERVICE_STATE_UPDATE_ERROR: $e', level: 1000, error: e);
-    }
+    final updatedState = AppState()..isServiceRunning = isRunning;
+    await _storageService.saveAppState(updatedState);
   }
 
-  Future<void> _updateLastStepCount() async {
+  Future<void> _updateOnDestroy() async {
     try {
       final dateKey = _convertDayToKey(DateTime.now());
       final lastStepRecord = await _storageService.getLastStepRecord(dateKey);
@@ -171,7 +175,7 @@ class StepCounterTaskHandler extends TaskHandler {
       if (lastStepRecord == null) return;
 
       final updatedRecord = lastStepRecord
-        ..endSteps = _lastDeviceSteps
+        ..steps = _lastDeviceSteps
         ..lastUpdateTime = DateTime.now();
 
       await _storageService.addDailyStepRecord(updatedRecord);
@@ -188,63 +192,80 @@ class StepCounterTaskHandler extends TaskHandler {
     try {
       final todayDate = _convertDayToKey(DateTime.now());
 
-      _stepSubscription = Pedometer().stepCountStream().listen(
-        (steps) async {
-          developer.log('PEDOMETER_STEP_COUNT: $steps');
-          _lastDeviceSteps = steps;
-          await _handleDailyStepChange(steps, todayDate);
-        },
-        onError: (error) {
-          developer.log('PEDOMETER_ERROR: ${error.toString()} ');
-        },
-        cancelOnError: false,
-      );
+      if (Platform.isIOS) {
+        _listenerIOS(todayDate);
+      } else if (Platform.isAndroid) {
+        _listenerAndroid(todayDate);
+      }
     } catch (e) {
       developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
     }
   }
 
+  void _listenerAndroid(DateTime todayDate) {
+    _stepSubscription = pedoInstance.stepCountStream().listen(
+      (_) async {
+        _callCounter++;
+        final shouldForceUpdate = _callCounter >= _maxCallsBeforeForce;
+
+        _debounceTimer?.cancel();
+
+        if (shouldForceUpdate) {
+          _callCounter = 0;
+          final steps = await pedoInstance.getStepCount(
+            from: todayDate,
+            to: DateTime.now(),
+          );
+          _lastDeviceSteps = steps;
+          await _handleDailyStepChange(steps, todayDate);
+        } else {
+          _debounceTimer = Timer(_debounceDuration, () async {
+            final steps = await pedoInstance.getStepCount(
+              from: todayDate,
+              to: DateTime.now(),
+            );
+            _lastDeviceSteps = steps;
+            _callCounter = 0;
+            await _handleDailyStepChange(steps, todayDate);
+          });
+        }
+      },
+
+      onError: (error) {
+        developer.log('PEDOMETER_ERROR: ${error.toString()} ');
+      },
+      cancelOnError: false,
+    );
+  }
+
+  void _listenerIOS(DateTime todayDate) {
+    _stepSubscription = pedoInstance
+        .stepCountStreamFrom(from: todayDate)
+        .listen(
+          (steps) async {
+            developer.log('PEDOMETER_STEP_COUNT: $steps');
+            _lastDeviceSteps = steps;
+            await _handleDailyStepChange(steps, todayDate);
+          },
+          onError: (error) {
+            developer.log('PEDOMETER_ERROR: ${error.toString()} ');
+          },
+          cancelOnError: false,
+        );
+  }
+
   Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
     try {
-      final verifiedDate = await _resetDailyCounter(date, deviceSteps);
+      final todayRecord = await _storageService.getTodayRecord(date);
 
-      final todayRecord = await _storageService.getOrCreateTodayRecord(
-        verifiedDate,
-        deviceSteps,
-      );
-      if (deviceSteps == 0) return;
       final updatedRecord = todayRecord
-        ..endSteps = deviceSteps
+        ..steps = deviceSteps
         ..lastUpdateTime = DateTime.now();
-
       await _storageService.addDailyStepRecord(updatedRecord);
-      await _updateNotification(updatedRecord.steps);
+      await _updateNotification(deviceSteps);
     } catch (e) {
       developer.log('STEP_HANDLE_ERROR_BG error: $e deviceSteps: $deviceSteps');
     }
-  }
-
-  Future<DateTime> _resetDailyCounter(
-    DateTime currentTrackedDate,
-    int deviceSteps,
-  ) async {
-    final actualCurrentDate = _convertDayToKey(DateTime.now());
-
-    // If we're still on the same day, no reset needed
-    if (currentTrackedDate == actualCurrentDate) return actualCurrentDate;
-
-    // Day has changed - update previous day's endSteps and create new record
-    developer.log(
-      'DAY_CHANGED: from $currentTrackedDate to $actualCurrentDate, deviceSteps: $deviceSteps',
-    );
-
-    // This will handle updating previous day's endSteps and creating new record
-    await _storageService.getOrCreateTodayRecord(
-      actualCurrentDate,
-      deviceSteps,
-    );
-
-    return actualCurrentDate;
   }
 
   Future<void> _updateNotification(int steps) async {

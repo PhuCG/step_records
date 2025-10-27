@@ -93,7 +93,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               itemCount: _allRecords.length,
               itemBuilder: (context, index) {
                 final record = _allRecords[index];
-                final steps = record.steps;
+                final steps = record.stepsCount;
                 final stepColor = _getStepColor(steps);
 
                 return Card(
@@ -215,13 +215,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDetailRow('Total Steps', _formatSteps(record.steps)),
-            const Divider(height: 24),
-            _buildDetailRow(
-              'Start Steps',
-              _formatSteps(record.startSteps ?? 0),
-            ),
-            _buildDetailRow('End Steps', _formatSteps(record.endSteps ?? 0)),
+            _buildDetailRow('Total Steps', _formatSteps(record.stepsCount)),
             const Divider(height: 24),
             _buildDetailRow(
               'Last Update',

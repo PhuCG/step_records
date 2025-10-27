@@ -18,15 +18,15 @@ const DailyStepRecordSchema = CollectionSchema(
   id: 865349736777983272,
   properties: {
     r'date': PropertySchema(id: 0, name: r'date', type: IsarType.dateTime),
-    r'endSteps': PropertySchema(id: 1, name: r'endSteps', type: IsarType.long),
     r'lastUpdateTime': PropertySchema(
-      id: 2,
+      id: 1,
       name: r'lastUpdateTime',
       type: IsarType.dateTime,
     ),
-    r'startSteps': PropertySchema(
+    r'steps': PropertySchema(id: 2, name: r'steps', type: IsarType.long),
+    r'stepsCount': PropertySchema(
       id: 3,
-      name: r'startSteps',
+      name: r'stepsCount',
       type: IsarType.long,
     ),
   },
@@ -76,9 +76,9 @@ void _dailyStepRecordSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDateTime(offsets[0], object.date);
-  writer.writeLong(offsets[1], object.endSteps);
-  writer.writeDateTime(offsets[2], object.lastUpdateTime);
-  writer.writeLong(offsets[3], object.startSteps);
+  writer.writeDateTime(offsets[1], object.lastUpdateTime);
+  writer.writeLong(offsets[2], object.steps);
+  writer.writeLong(offsets[3], object.stepsCount);
 }
 
 DailyStepRecord _dailyStepRecordDeserialize(
@@ -89,10 +89,9 @@ DailyStepRecord _dailyStepRecordDeserialize(
 ) {
   final object = DailyStepRecord();
   object.date = reader.readDateTime(offsets[0]);
-  object.endSteps = reader.readLongOrNull(offsets[1]);
   object.id = id;
-  object.lastUpdateTime = reader.readDateTimeOrNull(offsets[2]);
-  object.startSteps = reader.readLongOrNull(offsets[3]);
+  object.lastUpdateTime = reader.readDateTimeOrNull(offsets[1]);
+  object.steps = reader.readLongOrNull(offsets[2]);
   return object;
 }
 
@@ -106,11 +105,11 @@ P _dailyStepRecordDeserializeProp<P>(
     case 0:
       return (reader.readDateTime(offset)) as P;
     case 1:
-      return (reader.readLongOrNull(offset)) as P;
-    case 2:
       return (reader.readDateTimeOrNull(offset)) as P;
-    case 3:
+    case 2:
       return (reader.readLongOrNull(offset)) as P;
+    case 3:
+      return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -379,79 +378,6 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNull(property: r'endSteps'),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        const FilterCondition.isNotNull(property: r'endSteps'),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsEqualTo(int? value) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'endSteps', value: value),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsGreaterThan(int? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.greaterThan(
-          include: include,
-          property: r'endSteps',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsLessThan(int? value, {bool include = false}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.lessThan(
-          include: include,
-          property: r'endSteps',
-          value: value,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  endStepsBetween(
-    int? lower,
-    int? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(
-        FilterCondition.between(
-          property: r'endSteps',
-          lower: lower,
-          includeLower: includeLower,
-          upper: upper,
-          includeUpper: includeUpper,
-        ),
-      );
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
   idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -580,39 +506,39 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsIsNull() {
+  stepsIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        const FilterCondition.isNull(property: r'startSteps'),
+        const FilterCondition.isNull(property: r'steps'),
       );
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsIsNotNull() {
+  stepsIsNotNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        const FilterCondition.isNotNull(property: r'startSteps'),
+        const FilterCondition.isNotNull(property: r'steps'),
       );
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsEqualTo(int? value) {
+  stepsEqualTo(int? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
-        FilterCondition.equalTo(property: r'startSteps', value: value),
+        FilterCondition.equalTo(property: r'steps', value: value),
       );
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsGreaterThan(int? value, {bool include = false}) {
+  stepsGreaterThan(int? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.greaterThan(
           include: include,
-          property: r'startSteps',
+          property: r'steps',
           value: value,
         ),
       );
@@ -620,12 +546,12 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsLessThan(int? value, {bool include = false}) {
+  stepsLessThan(int? value, {bool include = false}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.lessThan(
           include: include,
-          property: r'startSteps',
+          property: r'steps',
           value: value,
         ),
       );
@@ -633,7 +559,7 @@ extension DailyStepRecordQueryFilter
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
-  startStepsBetween(
+  stepsBetween(
     int? lower,
     int? upper, {
     bool includeLower = true,
@@ -642,7 +568,62 @@ extension DailyStepRecordQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
         FilterCondition.between(
-          property: r'startSteps',
+          property: r'steps',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsCountEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'stepsCount', value: value),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsCountGreaterThan(int value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'stepsCount',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsCountLessThan(int value, {bool include = false}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'stepsCount',
+          value: value,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterFilterCondition>
+  stepsCountBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'stepsCount',
           lower: lower,
           includeLower: includeLower,
           upper: upper,
@@ -675,20 +656,6 @@ extension DailyStepRecordQuerySortBy
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  sortByEndSteps() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'endSteps', Sort.asc);
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  sortByEndStepsDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'endSteps', Sort.desc);
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
   sortByLastUpdateTime() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'lastUpdateTime', Sort.asc);
@@ -702,17 +669,30 @@ extension DailyStepRecordQuerySortBy
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  sortByStartSteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> sortBySteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'startSteps', Sort.asc);
+      return query.addSortBy(r'steps', Sort.asc);
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  sortByStartStepsDesc() {
+  sortByStepsDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'startSteps', Sort.desc);
+      return query.addSortBy(r'steps', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByStepsCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stepsCount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  sortByStepsCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stepsCount', Sort.desc);
     });
   }
 }
@@ -729,20 +709,6 @@ extension DailyStepRecordQuerySortThenBy
   thenByDateDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'date', Sort.desc);
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  thenByEndSteps() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'endSteps', Sort.asc);
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  thenByEndStepsDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'endSteps', Sort.desc);
     });
   }
 
@@ -772,17 +738,30 @@ extension DailyStepRecordQuerySortThenBy
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  thenByStartSteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy> thenBySteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'startSteps', Sort.asc);
+      return query.addSortBy(r'steps', Sort.asc);
     });
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
-  thenByStartStepsDesc() {
+  thenByStepsDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'startSteps', Sort.desc);
+      return query.addSortBy(r'steps', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByStepsCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stepsCount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QAfterSortBy>
+  thenByStepsCountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stepsCount', Sort.desc);
     });
   }
 }
@@ -796,23 +775,22 @@ extension DailyStepRecordQueryWhereDistinct
   }
 
   QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
-  distinctByEndSteps() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'endSteps');
-    });
-  }
-
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
   distinctByLastUpdateTime() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'lastUpdateTime');
     });
   }
 
-  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
-  distinctByStartSteps() {
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct> distinctBySteps() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'startSteps');
+      return query.addDistinctBy(r'steps');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, DailyStepRecord, QDistinct>
+  distinctByStepsCount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'stepsCount');
     });
   }
 }
@@ -831,12 +809,6 @@ extension DailyStepRecordQueryProperty
     });
   }
 
-  QueryBuilder<DailyStepRecord, int?, QQueryOperations> endStepsProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'endSteps');
-    });
-  }
-
   QueryBuilder<DailyStepRecord, DateTime?, QQueryOperations>
   lastUpdateTimeProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -844,9 +816,15 @@ extension DailyStepRecordQueryProperty
     });
   }
 
-  QueryBuilder<DailyStepRecord, int?, QQueryOperations> startStepsProperty() {
+  QueryBuilder<DailyStepRecord, int?, QQueryOperations> stepsProperty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'startSteps');
+      return query.addPropertyName(r'steps');
+    });
+  }
+
+  QueryBuilder<DailyStepRecord, int, QQueryOperations> stepsCountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'stepsCount');
     });
   }
 }

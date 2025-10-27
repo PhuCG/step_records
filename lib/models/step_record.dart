@@ -8,9 +8,8 @@ class DailyStepRecord {
 
   @Index()
   late DateTime date;
-  int? startSteps;
-  int? endSteps;
+  int? steps;
   DateTime? lastUpdateTime;
 
-  int get steps => (endSteps ?? 0) - (startSteps ?? 0);
+  int get stepsCount => steps ?? 0;
 }

@@ -6,4 +6,5 @@ part 'app_state.g.dart';
 class AppState {
   Id id = 0;
   bool isServiceRunning = false;
+  DateTime? startEventTime;
 }
