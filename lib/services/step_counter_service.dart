@@ -5,6 +5,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:intl/intl.dart';
 import '../models/app_state.dart';
+import '../models/step_record.dart';
 import 'storage_service.dart';
 
 class StepCounterService {
@@ -38,10 +39,97 @@ class StepCounterService {
       );
 
       await _validateServiceState();
+      await _updateMissDailyRecord();
       developer.log('SERVICE_INITIALIZED running');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
       rethrow;
+    }
+  }
+
+  Future<void> _updateMissDailyRecord() async {
+    final appState = await StorageService.instance.getAppState();
+    final startEventTime = appState.startEventTime;
+    if (startEventTime == null) return;
+
+    try {
+      final today = DateTime.now();
+      final todayDate = DateTime(today.year, today.month, today.day);
+
+      // Giới hạn chỉ lấy data trong 2 tuần gần nhất
+      final twoWeeksAgo = todayDate.subtract(const Duration(days: 14));
+
+      final startDate = DateTime(
+        startEventTime.year,
+        startEventTime.month,
+        startEventTime.day,
+      );
+
+      final effectiveStartDate = startDate.isAfter(twoWeeksAgo)
+          ? startDate
+          : twoWeeksAgo;
+
+      if (effectiveStartDate.isAtSameMomentAs(todayDate)) return;
+
+      final existingRecords = await StorageService.instance
+          .getStepRecordsByDateRange(effectiveStartDate, todayDate);
+
+      final existingDates = existingRecords.map((record) {
+        return DateTime(record.date.year, record.date.month, record.date.day);
+      }).toSet();
+
+      final missingDates = <DateTime>[];
+      DateTime currentDate = effectiveStartDate;
+
+      while (currentDate.isBefore(todayDate)) {
+        if (!existingDates.contains(currentDate)) missingDates.add(currentDate);
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
+      if (missingDates.isEmpty) return;
+
+      developer.log('MISSING_DATES_FOUND: ${missingDates.length} days');
+
+      final pedoInstance = Pedometer();
+
+      for (final missingDate in missingDates) {
+        try {
+          final startOfDay = missingDate;
+          final endOfDay = DateTime(
+            missingDate.year,
+            missingDate.month,
+            missingDate.day,
+            23,
+            59,
+            59,
+            999,
+          );
+
+          final steps = await pedoInstance.getStepCount(
+            from: startOfDay,
+            to: endOfDay,
+          );
+
+          final newRecord = DailyStepRecord()
+            ..date = missingDate
+            ..steps = steps
+            ..lastUpdateTime = DateTime.now();
+
+          await StorageService.instance.addDailyStepRecord(newRecord);
+        } catch (e) {
+          developer.log(
+            'ERROR_RECOVERING_DATE: ${DateFormat('yyyy-MM-dd').format(missingDate)} - $e',
+            level: 1000,
+            error: e,
+          );
+        }
+      }
+    } catch (e) {
+      developer.log(
+        'UPDATE_MISS_DAILY_RECORD_ERROR: $e',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
