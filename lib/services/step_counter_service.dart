@@ -39,12 +39,33 @@ class StepCounterService {
       );
 
       await _validateServiceState();
+      await _updatePreviousStep();
       await _updateMissDailyRecord();
       developer.log('SERVICE_INITIALIZED running');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
       rethrow;
     }
+  }
+
+  Future<void> _updatePreviousStep() async {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    var record = await StorageService.instance.getPreviousStepRecord(todayDate);
+    if (record == null || record.date.isAtSameMomentAs(todayDate)) return;
+    final steps = await Pedometer().getStepCount(
+      from: todayDate,
+      // end of day
+      to: todayDate.copyWith(
+        hour: 23,
+        minute: 59,
+        second: 59,
+        millisecond: 999,
+      ),
+    );
+    if (steps < (record.steps ?? 0)) return;
+    record = record..steps = steps;
+    await StorageService.instance.addDailyStepRecord(record);
   }
 
   Future<void> _updateMissDailyRecord() async {
