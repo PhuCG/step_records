@@ -39,13 +39,36 @@ class StepCounterService {
         ),
       );
 
-      await _validateServiceState();
+      await _autoStartWhenKill();
       await _updatePreviousStep();
       await _updateMissDailyRecord();
       developer.log('SERVICE_INITIALIZED running');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
       rethrow;
+    }
+  }
+
+  Future<void> _autoStartWhenKill() async {
+    try {
+      final isServiceRunning = await FlutterForegroundTask.isRunningService;
+      var appState = await _storageService.getAppState();
+      // Service is not running, do nothing
+      if (appState.isServiceRunning == false) {
+        return;
+        // Service is running, do nothing
+      } else if (appState.isServiceRunning && isServiceRunning) {
+        return;
+        // Kill service need to restart
+      } else if (appState.isServiceRunning) {
+        // reset app state
+        appState = appState..isServiceRunning = false;
+        await _storageService.saveAppState(appState);
+        // restart service
+        await startService();
+      }
+    } catch (e) {
+      developer.log('AUTO_START_WHEN_KILL_ERROR: $e', level: 1000, error: e);
     }
   }
 
@@ -261,7 +284,7 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
     // Service destroyed - update local state
     await _updateOnDestroy();
-    await _updateServiceState(false);
+    // await _updateServiceState(false);
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
     _stepSubscription = null;
