@@ -54,15 +54,11 @@ class StepCounterService {
     final todayDate = DateTime(today.year, today.month, today.day);
     var record = await _storageService.getPreviousStepRecord(todayDate);
     if (record == null || record.date.isAtSameMomentAs(todayDate)) return;
+    final prevDate = record.date;
     final steps = await Pedometer().getStepCount(
-      from: todayDate,
+      from: prevDate,
       // end of day
-      to: todayDate.copyWith(
-        hour: 23,
-        minute: 59,
-        second: 59,
-        millisecond: 999,
-      ),
+      to: prevDate.copyWith(hour: 23, minute: 59, second: 59, millisecond: 999),
     );
     if (steps < (record.steps ?? 0)) return;
     record = record..steps = steps;
