@@ -261,12 +261,6 @@ class StepCounterTaskHandler extends TaskHandler {
   int _lastDeviceSteps = 0;
   final _storageService = StorageService.instance;
 
-  // Debounce với counter
-  Timer? _debounceTimer;
-  int _callCounter = 0;
-  static const int _maxCallsBeforeForce = 5;
-  static const Duration _debounceDuration = Duration(seconds: 2);
-
   final pedoInstance = Pedometer();
 
   @override
@@ -288,9 +282,6 @@ class StepCounterTaskHandler extends TaskHandler {
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
     _stepSubscription = null;
-    // Cancel debounce timer if active
-    _debounceTimer?.cancel();
-    _debounceTimer = null;
   }
 
   Future<void> _updateServiceState(bool isRunning) async {
@@ -340,29 +331,15 @@ class StepCounterTaskHandler extends TaskHandler {
   void _listenerAndroid(DateTime todayDate) {
     _stepSubscription = pedoInstance.stepCountStream().listen(
       (_) async {
-        _callCounter++;
-        final shouldForceUpdate = _callCounter >= _maxCallsBeforeForce;
-
-        _debounceTimer?.cancel();
-
-        if (shouldForceUpdate) {
-          _callCounter = 0;
+        try {
           final steps = await pedoInstance.getStepCount(
             from: todayDate,
             to: DateTime.now(),
           );
           _lastDeviceSteps = steps;
           await _handleDailyStepChange(steps, todayDate);
-        } else {
-          _debounceTimer = Timer(_debounceDuration, () async {
-            final steps = await pedoInstance.getStepCount(
-              from: todayDate,
-              to: DateTime.now(),
-            );
-            _lastDeviceSteps = steps;
-            _callCounter = 0;
-            await _handleDailyStepChange(steps, todayDate);
-          });
+        } catch (e) {
+          developer.log('PEDOMETER_ERROR: ${e.toString()} ');
         }
       },
 
