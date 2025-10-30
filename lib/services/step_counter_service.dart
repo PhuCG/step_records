@@ -261,6 +261,19 @@ class StepCounterTaskHandler extends TaskHandler {
   int _lastDeviceSteps = 0;
   final _storageService = StorageService.instance;
 
+  // Date tracking
+  DateTime? _currentTrackingDate;
+
+  // Debounce variables
+  Timer? _debounceTimer;
+  int _callCounter = 0;
+  static const int _maxCallsBeforeForce = 5;
+  static const Duration _debounceDuration = Duration(milliseconds: 350);
+
+  // Processing flag to prevent race condition
+  bool _isProcessing = false;
+  bool _hasPendingUpdate = false; // Flag to track pending update
+
   final pedoInstance = Pedometer();
 
   @override
@@ -282,6 +295,9 @@ class StepCounterTaskHandler extends TaskHandler {
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
     _stepSubscription = null;
+    // Cancel debounce timer if active
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
   }
 
   Future<void> _updateServiceState(bool isRunning) async {
@@ -317,37 +333,126 @@ class StepCounterTaskHandler extends TaskHandler {
   Future<void> _beginBackgroundStepCounting() async {
     try {
       final todayDate = _convertDayToKey(DateTime.now());
+      _currentTrackingDate = todayDate;
 
       if (Platform.isIOS) {
         _listenerIOS(todayDate);
       } else if (Platform.isAndroid) {
-        _listenerAndroid(todayDate);
+        _listenerAndroid();
       }
     } catch (e) {
       developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
     }
   }
 
-  void _listenerAndroid(DateTime todayDate) {
+  Future<DateTime> _verifyDate(DateTime date) async {
+    final todayKey = _convertDayToKey(DateTime.now());
+
+    // Same day, return current date
+    if (date.isAtSameMomentAs(todayKey)) return date;
+
+    try {
+      final endOfOldDay = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        23,
+        59,
+        59,
+        999,
+      );
+
+      final finalSteps = await pedoInstance.getStepCount(
+        from: date,
+        to: endOfOldDay,
+      );
+
+      final oldDayRecord = await _storageService.getTodayRecord(date);
+      final finalizedRecord = oldDayRecord
+        ..steps = finalSteps
+        ..lastUpdateTime = DateTime.now();
+      await _storageService.addDailyStepRecord(finalizedRecord);
+
+      _lastDeviceSteps = 0;
+    } catch (e) {
+      developer.log('FINALIZE_OLD_DAY_ERROR: $e', level: 1000, error: e);
+    }
+
+    return todayKey;
+  }
+
+  void _listenerAndroid() {
     _stepSubscription = pedoInstance.stepCountStream().listen(
       (_) async {
+        // If processing, mark as pending and return
+        if (_isProcessing) {
+          _hasPendingUpdate = true;
+          return;
+        }
+
         try {
-          final steps = await pedoInstance.getStepCount(
-            from: todayDate,
-            to: DateTime.now(),
-          );
-          _lastDeviceSteps = steps;
-          await _handleDailyStepChange(steps, todayDate);
+          _callCounter++;
+          final shouldForceUpdate = _callCounter >= _maxCallsBeforeForce;
+          _debounceTimer?.cancel();
+
+          if (shouldForceUpdate) {
+            // Force update immediately after 5 calls
+            _callCounter = 0;
+            await _processStepUpdate();
+          } else {
+            // Debounce: wait 350ms without new event before updating
+            _debounceTimer = Timer(_debounceDuration, () async {
+              _callCounter = 0;
+              await _processStepUpdate();
+            });
+          }
         } catch (e) {
-          developer.log('PEDOMETER_ERROR: ${e.toString()} ');
+          developer.log('PEDOMETER_LISTENER_ERROR: $e', level: 1000, error: e);
+          _isProcessing = false;
+          _hasPendingUpdate = false;
         }
       },
-
       onError: (error) {
-        developer.log('PEDOMETER_ERROR: ${error.toString()} ');
+        developer.log('PEDOMETER_STREAM_ERROR: ${error.toString()}');
       },
       cancelOnError: false,
     );
+  }
+
+  Future<void> _processStepUpdate() async {
+    if (_isProcessing) return;
+    if (_currentTrackingDate == null) return;
+
+    _isProcessing = true;
+    _hasPendingUpdate = false; // Reset pending flag when starting to process
+
+    try {
+      // Verify and update date if needed (will finalize old day automatically)
+      _currentTrackingDate = await _verifyDate(_currentTrackingDate!);
+
+      // Get steps of current day
+      final steps = await pedoInstance.getStepCount(
+        from: _currentTrackingDate!,
+        to: DateTime.now(),
+      );
+
+      // Validation: only update if new steps >= current steps
+      if (steps < _lastDeviceSteps) return;
+
+      _lastDeviceSteps = steps;
+
+      await _handleDailyStepChange(steps, _currentTrackingDate!);
+    } catch (e) {
+      developer.log('PROCESS_STEP_UPDATE_ERROR: $e', level: 1000, error: e);
+    } finally {
+      _isProcessing = false;
+
+      // If there is pending update while processing, process again immediately
+      if (!_hasPendingUpdate) return;
+      _hasPendingUpdate = false;
+      // Call again to process latest data
+      await _processStepUpdate();
+    }
   }
 
   void _listenerIOS(DateTime todayDate) {
