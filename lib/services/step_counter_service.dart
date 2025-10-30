@@ -336,7 +336,7 @@ class StepCounterTaskHandler extends TaskHandler {
       _currentTrackingDate = todayDate;
 
       if (Platform.isIOS) {
-        _listenerIOS(todayDate);
+        _listenerIOS();
       } else if (Platform.isAndroid) {
         _listenerAndroid();
       }
@@ -345,40 +345,29 @@ class StepCounterTaskHandler extends TaskHandler {
     }
   }
 
-  Future<DateTime> _verifyDate(DateTime date) async {
-    final todayKey = _convertDayToKey(DateTime.now());
+  Future<void> _finalizeOldDay(DateTime date) async {
+    final endOfOldDay = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+    );
 
-    // Same day, return current date
-    if (date.isAtSameMomentAs(todayKey)) return date;
+    final finalSteps = await pedoInstance.getStepCount(
+      from: date,
+      to: endOfOldDay,
+    );
 
-    try {
-      final endOfOldDay = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        23,
-        59,
-        59,
-        999,
-      );
+    final oldDayRecord = await _storageService.getTodayRecord(date);
+    final finalizedRecord = oldDayRecord
+      ..steps = finalSteps
+      ..lastUpdateTime = DateTime.now();
+    await _storageService.addDailyStepRecord(finalizedRecord);
 
-      final finalSteps = await pedoInstance.getStepCount(
-        from: date,
-        to: endOfOldDay,
-      );
-
-      final oldDayRecord = await _storageService.getTodayRecord(date);
-      final finalizedRecord = oldDayRecord
-        ..steps = finalSteps
-        ..lastUpdateTime = DateTime.now();
-      await _storageService.addDailyStepRecord(finalizedRecord);
-
-      _lastDeviceSteps = 0;
-    } catch (e) {
-      developer.log('FINALIZE_OLD_DAY_ERROR: $e', level: 1000, error: e);
-    }
-
-    return todayKey;
+    _lastDeviceSteps = 0;
   }
 
   void _listenerAndroid() {
@@ -419,7 +408,10 @@ class StepCounterTaskHandler extends TaskHandler {
     );
   }
 
-  Future<void> _processStepUpdate() async {
+  Future<void> _processStepUpdate({
+    int? stepsFromStream,
+    Future<void> Function()? onDateChanged,
+  }) async {
     if (_isProcessing) return;
     if (_currentTrackingDate == null) return;
 
@@ -427,19 +419,27 @@ class StepCounterTaskHandler extends TaskHandler {
     _hasPendingUpdate = false; // Reset pending flag when starting to process
 
     try {
-      // Verify and update date if needed (will finalize old day automatically)
-      _currentTrackingDate = await _verifyDate(_currentTrackingDate!);
+      // Check for date change
+      final todayKey = _convertDayToKey(DateTime.now());
+      if (!_currentTrackingDate!.isAtSameMomentAs(todayKey)) {
+        // Date changed - finalize old day
+        await _finalizeOldDay(_currentTrackingDate!);
+        _currentTrackingDate = todayKey;
 
-      // Get steps of current day
-      final steps = await pedoInstance.getStepCount(
-        from: _currentTrackingDate!,
-        to: DateTime.now(),
-      );
+        // iOS: restart listener, Android: just continue
+        if (onDateChanged != null) {
+          await onDateChanged();
+          return;
+        }
+      }
 
-      // Validation: only update if new steps >= current steps
-      if (steps < _lastDeviceSteps) return;
-
-      _lastDeviceSteps = steps;
+      // Get steps: from stream (iOS) or query sensor (Android)
+      final steps =
+          stepsFromStream ??
+          await pedoInstance.getStepCount(
+            from: _currentTrackingDate!,
+            to: DateTime.now(),
+          );
 
       await _handleDailyStepChange(steps, _currentTrackingDate!);
     } catch (e) {
@@ -450,22 +450,50 @@ class StepCounterTaskHandler extends TaskHandler {
       // If there is pending update while processing, process again immediately
       if (!_hasPendingUpdate) return;
       _hasPendingUpdate = false;
+
       // Call again to process latest data
-      await _processStepUpdate();
+      // iOS: use _lastDeviceSteps, Android: query again
+      await _processStepUpdate(
+        stepsFromStream: stepsFromStream != null ? _lastDeviceSteps : null,
+        onDateChanged: onDateChanged,
+      );
     }
   }
 
-  void _listenerIOS(DateTime todayDate) {
+  void _listenerIOS() {
+    if (_currentTrackingDate == null) return;
+
     _stepSubscription = pedoInstance
-        .stepCountStreamFrom(from: todayDate)
+        .stepCountStreamFrom(from: _currentTrackingDate!)
         .listen(
           (steps) async {
-            developer.log('PEDOMETER_STEP_COUNT: $steps');
-            _lastDeviceSteps = steps;
-            await _handleDailyStepChange(steps, todayDate);
+            // If processing, mark as pending and return
+            if (_isProcessing) {
+              _hasPendingUpdate = true;
+              return;
+            }
+
+            try {
+              await _processStepUpdate(
+                stepsFromStream: steps,
+                onDateChanged: () async {
+                  // Restart listener with new date
+                  await _stepSubscription?.cancel();
+                  _listenerIOS();
+                },
+              );
+            } catch (e) {
+              developer.log(
+                'PEDOMETER_LISTENER_ERROR: $e',
+                level: 1000,
+                error: e,
+              );
+              _isProcessing = false;
+              _hasPendingUpdate = false;
+            }
           },
           onError: (error) {
-            developer.log('PEDOMETER_ERROR: ${error.toString()} ');
+            developer.log('PEDOMETER_STREAM_ERROR: ${error.toString()}');
           },
           cancelOnError: false,
         );
@@ -475,6 +503,7 @@ class StepCounterTaskHandler extends TaskHandler {
     try {
       final todayRecord = await _storageService.getTodayRecord(date);
 
+      if (deviceSteps < todayRecord.stepsCount) return;
       final updatedRecord = todayRecord
         ..steps = deviceSteps
         ..lastUpdateTime = DateTime.now();
