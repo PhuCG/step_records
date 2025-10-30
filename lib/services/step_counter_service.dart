@@ -258,7 +258,7 @@ Future<void> startCallback() async {
 
 class StepCounterTaskHandler extends TaskHandler {
   StreamSubscription? _stepSubscription;
-  int _lastDeviceSteps = 0;
+
   final _storageService = StorageService.instance;
 
   // Date tracking
@@ -346,8 +346,6 @@ class StepCounterTaskHandler extends TaskHandler {
       ..steps = finalSteps
       ..lastUpdateTime = DateTime.now();
     await _storageService.addDailyStepRecord(finalizedRecord);
-
-    _lastDeviceSteps = 0;
   }
 
   void _listenerAndroid() {
@@ -426,17 +424,13 @@ class StepCounterTaskHandler extends TaskHandler {
       developer.log('PROCESS_STEP_UPDATE_ERROR: $e', level: 1000, error: e);
     } finally {
       _isProcessing = false;
-
       // If there is pending update while processing, process again immediately
-      if (!_hasPendingUpdate) return;
-      _hasPendingUpdate = false;
+      if (_hasPendingUpdate) {
+        _hasPendingUpdate = false;
 
-      // Call again to process latest data
-      // iOS: use _lastDeviceSteps, Android: query again
-      await _processStepUpdate(
-        stepsFromStream: stepsFromStream != null ? _lastDeviceSteps : null,
-        onDateChanged: onDateChanged,
-      );
+        // Call again to process latest data
+        await _processStepUpdate();
+      }
     }
   }
 
