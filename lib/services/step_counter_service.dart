@@ -289,9 +289,6 @@ class StepCounterTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
-    // Service destroyed - update local state
-    await _updateOnDestroy();
-    // await _updateServiceState(false);
     // Cancel pedometer subscription if active
     await _stepSubscription?.cancel();
     _stepSubscription = null;
@@ -307,23 +304,6 @@ class StepCounterTaskHandler extends TaskHandler {
       appState = appState..startEventTime = DateTime.now();
     }
     await _storageService.saveAppState(appState);
-  }
-
-  Future<void> _updateOnDestroy() async {
-    try {
-      final dateKey = _convertDayToKey(DateTime.now());
-      final lastStepRecord = await _storageService.getLastStepRecord(dateKey);
-
-      if (lastStepRecord == null) return;
-
-      final updatedRecord = lastStepRecord
-        ..steps = _lastDeviceSteps
-        ..lastUpdateTime = DateTime.now();
-
-      await _storageService.addDailyStepRecord(updatedRecord);
-    } catch (e) {
-      developer.log('LAST_STEP_COUNT_UPDATE_ERROR: $e', level: 1000, error: e);
-    }
   }
 
   DateTime _convertDayToKey(DateTime date) {
