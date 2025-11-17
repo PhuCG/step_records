@@ -17,15 +17,25 @@ const AppStateSchema = CollectionSchema(
   name: r'AppState',
   id: 7189399113359544372,
   properties: {
-    r'isServiceRunning': PropertySchema(
+    r'driverName': PropertySchema(
       id: 0,
+      name: r'driverName',
+      type: IsarType.string,
+    ),
+    r'isServiceRunning': PropertySchema(
+      id: 1,
       name: r'isServiceRunning',
       type: IsarType.bool,
     ),
     r'startEventTime': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'startEventTime',
       type: IsarType.dateTime,
+    ),
+    r'vehicleId': PropertySchema(
+      id: 3,
+      name: r'vehicleId',
+      type: IsarType.string,
     ),
   },
 
@@ -50,6 +60,18 @@ int _appStateEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  {
+    final value = object.driverName;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.vehicleId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -59,8 +81,10 @@ void _appStateSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeBool(offsets[0], object.isServiceRunning);
-  writer.writeDateTime(offsets[1], object.startEventTime);
+  writer.writeString(offsets[0], object.driverName);
+  writer.writeBool(offsets[1], object.isServiceRunning);
+  writer.writeDateTime(offsets[2], object.startEventTime);
+  writer.writeString(offsets[3], object.vehicleId);
 }
 
 AppState _appStateDeserialize(
@@ -70,9 +94,11 @@ AppState _appStateDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = AppState();
+  object.driverName = reader.readStringOrNull(offsets[0]);
   object.id = id;
-  object.isServiceRunning = reader.readBool(offsets[0]);
-  object.startEventTime = reader.readDateTimeOrNull(offsets[1]);
+  object.isServiceRunning = reader.readBool(offsets[1]);
+  object.startEventTime = reader.readDateTimeOrNull(offsets[2]);
+  object.vehicleId = reader.readStringOrNull(offsets[3]);
   return object;
 }
 
@@ -84,9 +110,13 @@ P _appStateDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 1:
+      return (reader.readBool(offset)) as P;
+    case 2:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 3:
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -184,6 +214,170 @@ extension AppStateQueryWhere on QueryBuilder<AppState, AppState, QWhereClause> {
 
 extension AppStateQueryFilter
     on QueryBuilder<AppState, AppState, QFilterCondition> {
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'driverName'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  driverNameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'driverName'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'driverName',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameContains(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'driverName',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameMatches(
+    String pattern, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'driverName',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> driverNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'driverName', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  driverNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'driverName', value: ''),
+      );
+    });
+  }
+
   QueryBuilder<AppState, AppState, QAfterFilterCondition> idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -322,6 +516,169 @@ extension AppStateQueryFilter
       );
     });
   }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'vehicleId'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'vehicleId'),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'vehicleId',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdContains(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'vehicleId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdMatches(
+    String pattern, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'vehicleId',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition> vehicleIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'vehicleId', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterFilterCondition>
+  vehicleIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'vehicleId', value: ''),
+      );
+    });
+  }
 }
 
 extension AppStateQueryObject
@@ -331,6 +688,18 @@ extension AppStateQueryLinks
     on QueryBuilder<AppState, AppState, QFilterCondition> {}
 
 extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByDriverName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'driverName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByDriverNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'driverName', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppState, AppState, QAfterSortBy> sortByIsServiceRunning() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isServiceRunning', Sort.asc);
@@ -354,10 +723,34 @@ extension AppStateQuerySortBy on QueryBuilder<AppState, AppState, QSortBy> {
       return query.addSortBy(r'startEventTime', Sort.desc);
     });
   }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByVehicleId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> sortByVehicleIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleId', Sort.desc);
+    });
+  }
 }
 
 extension AppStateQuerySortThenBy
     on QueryBuilder<AppState, AppState, QSortThenBy> {
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByDriverName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'driverName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByDriverNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'driverName', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppState, AppState, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -393,10 +786,30 @@ extension AppStateQuerySortThenBy
       return query.addSortBy(r'startEventTime', Sort.desc);
     });
   }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByVehicleId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QAfterSortBy> thenByVehicleIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'vehicleId', Sort.desc);
+    });
+  }
 }
 
 extension AppStateQueryWhereDistinct
     on QueryBuilder<AppState, AppState, QDistinct> {
+  QueryBuilder<AppState, AppState, QDistinct> distinctByDriverName({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'driverName', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<AppState, AppState, QDistinct> distinctByIsServiceRunning() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isServiceRunning');
@@ -406,6 +819,14 @@ extension AppStateQueryWhereDistinct
   QueryBuilder<AppState, AppState, QDistinct> distinctByStartEventTime() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'startEventTime');
+    });
+  }
+
+  QueryBuilder<AppState, AppState, QDistinct> distinctByVehicleId({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'vehicleId', caseSensitive: caseSensitive);
     });
   }
 }
@@ -418,6 +839,12 @@ extension AppStateQueryProperty
     });
   }
 
+  QueryBuilder<AppState, String?, QQueryOperations> driverNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'driverName');
+    });
+  }
+
   QueryBuilder<AppState, bool, QQueryOperations> isServiceRunningProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isServiceRunning');
@@ -427,6 +854,12 @@ extension AppStateQueryProperty
   QueryBuilder<AppState, DateTime?, QQueryOperations> startEventTimeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'startEventTime');
+    });
+  }
+
+  QueryBuilder<AppState, String?, QQueryOperations> vehicleIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'vehicleId');
     });
   }
 }

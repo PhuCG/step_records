@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/step_counter_service.dart';
 import '../services/storage_service.dart';
 import '../services/permission_service.dart';
 import '../models/app_state.dart';
-import '../models/step_record.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,7 +13,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppState _appState = AppState();
-  DailyStepRecord? _todayRecord;
 
   @override
   void initState() {
@@ -27,17 +24,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {
           _appState = appState;
         });
-      }
-    });
-
-    // Subscribe to today's step changes
-    StorageService.instance.watchTodaySteps().listen((records) {
-      if (mounted) {
-        if (records.isNotEmpty) {
-          setState(() {
-            _todayRecord = records.first;
-          });
-        } else {}
       }
     });
   }
@@ -62,8 +48,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       }
 
-      // UI Layer: Start service (Service layer will handle the rest)
-      final success = await StepCounterService.instance.startService();
+      // Show dialog to get driver name and vehicle ID
+      final result = await _showDriverInfoDialog();
+      if (result == null) {
+        return; // User cancelled
+      }
+
+      final name = result['name'] as String;
+      final vehicleId = result['vehicleId'] as String;
+
+      if (name.isEmpty || vehicleId.isEmpty) {
+        _showErrorSnackBar('Please enter driver name and vehicle ID');
+        return;
+      }
+
+      // UI Layer: Start service with driver info
+      final success = await StepCounterService.instance.startService(
+        name: name,
+        vehicleId: vehicleId,
+      );
       if (success) {
         _showSuccessSnackBar('Step counting started');
         // No need to refresh - watchers will handle UI updates
@@ -73,6 +76,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (e) {
       _showErrorSnackBar('Error starting service: $e');
     }
+  }
+
+  Future<Map<String, String>?> _showDriverInfoDialog() async {
+    final nameController = TextEditingController();
+    final vehicleIdController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Driver Information'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Driver Name',
+                hintText: 'Enter driver name',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: vehicleIdController,
+              decoration: const InputDecoration(
+                labelText: 'Vehicle ID',
+                hintText: 'Enter vehicle ID',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop({
+                'name': nameController.text.trim(),
+                'vehicleId': vehicleIdController.text.trim(),
+              });
+            },
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _stopService() async {
@@ -104,31 +154,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  String _formatSteps(int steps) {
-    return NumberFormat('#,###').format(steps);
-  }
-
-  String _formatLastUpdate(DateTime? lastUpdate) {
-    if (lastUpdate == null) return 'Never';
-
-    final now = DateTime.now();
-    final difference = now.difference(lastUpdate);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else {
-      return DateFormat('MMM d, HH:mm').format(lastUpdate);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final todaySteps = _todayRecord?.steps ?? 0;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Step Counter'),
@@ -139,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Main step counter display
+            // Main display
             Card(
               elevation: 4,
               child: Padding(
@@ -153,26 +180,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      _formatSteps(todaySteps),
-                      style: Theme.of(context).textTheme.headlineLarge
+                      _appState.isServiceRunning
+                          ? 'Tracking Active'
+                          : 'Not Tracking',
+                      style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue,
+                            color: _appState.isServiceRunning
+                                ? Colors.green
+                                : Colors.grey,
                           ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'steps today',
+                      _appState.isServiceRunning
+                          ? 'Step counting is running'
+                          : 'Press Start to begin tracking',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: Colors.grey[600],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Last updated: ${_formatLastUpdate(_todayRecord?.lastUpdateTime)}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -249,6 +275,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                       ],
                     ),
+                    if (_appState.isServiceRunning &&
+                        _appState.driverName != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Driver:'),
+                          Text(_appState.driverName ?? ''),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Vehicle ID:'),
+                          Text(_appState.vehicleId ?? ''),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -4,7 +4,8 @@ import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:intl/intl.dart';
-import '../models/step_record.dart';
+import 'package:path_provider/path_provider.dart';
+import '../models/step_log_entry.dart';
 import 'storage_service.dart';
 
 class StepCounterService {
@@ -33,170 +34,67 @@ class StepCounterService {
         ),
         foregroundTaskOptions: ForegroundTaskOptions(
           eventAction: ForegroundTaskEventAction.repeat(5000), // 5 seconds
-          autoRunOnBoot: true,
+          autoRunOnBoot: false, // Disable auto-run on boot for simplified flow
           allowWakeLock: true,
           allowWifiLock: false,
         ),
       );
 
-      await _autoStartWhenKill();
-      await _updatePreviousStep();
-      await _updateMissDailyRecord();
-      developer.log('SERVICE_INITIALIZED running');
+      // Clean old CSV files on initialization
+      await _cleanOldCsvFiles();
+
+      // Validate service state on startup
+      await _validateServiceState();
+
+      developer.log('SERVICE_INITIALIZED');
     } catch (e) {
       developer.log('SERVICE_INIT_ERROR error: $e', level: 1000, error: e);
       rethrow;
     }
   }
 
-  Future<void> _autoStartWhenKill() async {
+  Future<void> _validateServiceState() async {
     try {
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
       var appState = await _storageService.getAppState();
-      // Service is not running, do nothing
-      if (appState.isServiceRunning == false) {
-        return;
-        // Service is running, do nothing
-      } else if (appState.isServiceRunning && isServiceRunning) {
-        return;
-        // Kill service need to restart
-      } else if (appState.isServiceRunning) {
-        // reset app state
-        appState = appState..isServiceRunning = false;
-        await _storageService.saveAppState(appState);
-        // restart service
-        await startService();
-      }
-    } catch (e) {
-      developer.log('AUTO_START_WHEN_KILL_ERROR: $e', level: 1000, error: e);
-    }
-  }
 
-  Future<void> _updatePreviousStep() async {
-    final today = DateTime.now();
-    final todayDate = DateTime(today.year, today.month, today.day);
-    var record = await _storageService.getPreviousStepRecord(todayDate);
-    if (record == null || record.date.isAtSameMomentAs(todayDate)) return;
-    final prevDate = record.date;
-    final steps = await Pedometer().getStepCount(
-      from: prevDate,
-      // end of day
-      to: prevDate.copyWith(hour: 23, minute: 59, second: 59, millisecond: 999),
-    );
-    if (steps < (record.steps ?? 0)) return;
-    record = record..steps = steps;
-    await _storageService.addDailyStepRecord(record);
-  }
-
-  Future<void> _updateMissDailyRecord() async {
-    final appState = await _storageService.getAppState();
-    final startEventTime = appState.startEventTime;
-    if (startEventTime == null) return;
-
-    try {
-      final today = DateTime.now();
-      final todayDate = DateTime(today.year, today.month, today.day);
-
-      final twoWeeksAgo = todayDate.subtract(const Duration(days: 14));
-
-      final startDate = DateTime(
-        startEventTime.year,
-        startEventTime.month,
-        startEventTime.day,
-      );
-
-      final effectiveStartDate = startDate.isAfter(twoWeeksAgo)
-          ? startDate
-          : twoWeeksAgo;
-
-      if (effectiveStartDate.isAtSameMomentAs(todayDate)) return;
-
-      final existingRecords = await _storageService.getStepRecordsByDateRange(
-        effectiveStartDate,
-        todayDate,
-      );
-
-      final existingDates = existingRecords.map((record) {
-        return DateTime(record.date.year, record.date.month, record.date.day);
-      }).toSet();
-
-      final missingDates = <DateTime>[];
-      DateTime currentDate = effectiveStartDate;
-
-      while (currentDate.isBefore(todayDate)) {
-        if (!existingDates.contains(currentDate)) missingDates.add(currentDate);
-        currentDate = currentDate.add(const Duration(days: 1));
-      }
-
-      if (missingDates.isEmpty) return;
-
-      developer.log('MISSING_DATES_FOUND: ${missingDates.length} days');
-
-      final pedoInstance = Pedometer();
-
-      for (final missingDate in missingDates) {
-        try {
-          final startOfDay = missingDate;
-          final endOfDay = DateTime(
-            missingDate.year,
-            missingDate.month,
-            missingDate.day,
-            23,
-            59,
-            59,
-            999,
-          );
-
-          final steps = await pedoInstance.getStepCount(
-            from: startOfDay,
-            to: endOfDay,
-          );
-
-          final newRecord = DailyStepRecord()
-            ..date = missingDate
-            ..steps = steps
-            ..lastUpdateTime = DateTime.now();
-
-          await _storageService.addDailyStepRecord(newRecord);
-        } catch (e) {
-          developer.log(
-            'ERROR_RECOVERING_DATE: ${DateFormat('yyyy-MM-dd').format(missingDate)} - $e',
-            level: 1000,
-            error: e,
-          );
+      // Sync local state with actual service status
+      if (appState.isServiceRunning != isServiceRunning) {
+        appState.isServiceRunning = isServiceRunning;
+        if (!isServiceRunning) {
+          appState.startEventTime = null;
+          appState.driverName = null;
+          appState.vehicleId = null;
         }
+        await _storageService.saveAppState(appState);
+        developer.log(
+          'SERVICE_STATE_SYNC: localState=${appState.isServiceRunning} || actualState=$isServiceRunning',
+        );
       }
     } catch (e) {
-      developer.log(
-        'UPDATE_MISS_DAILY_RECORD_ERROR: $e',
-        level: 1000,
-        error: e,
-      );
+      developer.log('VALIDATE_SERVICE_STATE_ERROR: $e', level: 1000, error: e);
     }
   }
 
-  Future<bool> _validateServiceState() async {
+  Future<bool> startService({
+    required String name,
+    required String vehicleId,
+  }) async {
     try {
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
-      var appState = await _storageService.getAppState();
-      if (appState.isServiceRunning && isServiceRunning) return true;
-      await _storageService.saveAppState(
-        appState..isServiceRunning = isServiceRunning,
-      );
-      await FlutterForegroundTask.stopService();
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  Future<bool> startService() async {
-    try {
-      final isValid = await _validateServiceState();
-      if (isValid) {
+      if (isServiceRunning) {
         developer.log('SERVICE_ALREADY_RUNNING');
         return true;
       }
+
+      // Save start time and driver info
+      final startTime = DateTime.now();
+      var appState = await _storageService.getAppState();
+      appState.isServiceRunning = true;
+      appState.startEventTime = startTime;
+      appState.driverName = name;
+      appState.vehicleId = vehicleId;
+      await _storageService.saveAppState(appState);
 
       // Start foreground task
       final result = await FlutterForegroundTask.startService(
@@ -206,18 +104,19 @@ class StepCounterService {
       );
 
       if (result is ServiceRequestSuccess) {
-        // Save new app state - Service layer manages its own state
-        var newState = await _storageService.getAppState();
-        newState = newState..isServiceRunning = true;
-        if (newState.startEventTime == null) {
-          newState = newState..startEventTime = DateTime.now();
-        }
-        await _storageService.saveAppState(newState);
-
-        developer.log('SERVICE_STARTED');
+        developer.log(
+          'SERVICE_STARTED: name=$name, vehicleId=$vehicleId, startTime=$startTime',
+        );
+        return true;
+      } else {
+        // Rollback state if service start failed
+        appState.isServiceRunning = false;
+        appState.startEventTime = null;
+        appState.driverName = null;
+        appState.vehicleId = null;
+        await _storageService.saveAppState(appState);
+        return false;
       }
-
-      return result is ServiceRequestSuccess;
     } catch (e) {
       developer.log('SERVICE_START_ERROR error: $e', level: 1000, error: e);
       return false;
@@ -226,27 +125,107 @@ class StepCounterService {
 
   Future<bool> stopService() async {
     try {
-      final isValid = await _validateServiceState();
-      if (!isValid) {
+      final isServiceRunning = await FlutterForegroundTask.isRunningService;
+      if (!isServiceRunning) {
         developer.log('SERVICE_NOT_RUNNING');
+        // Still try to export CSV if there's data
+        await _exportCsvAndCleanup();
         return true;
       }
 
-      // Stop foreground task
+      // Stop foreground task first
       final result = await FlutterForegroundTask.stopService();
 
       if (result is ServiceRequestSuccess) {
+        // Export CSV and cleanup
+        await _exportCsvAndCleanup();
+
         // Update app state
         var appState = await _storageService.getAppState();
-        appState = appState..isServiceRunning = false;
+        appState.isServiceRunning = false;
+        appState.startEventTime = null;
+        appState.driverName = null;
+        appState.vehicleId = null;
         await _storageService.saveAppState(appState);
+
         developer.log('SERVICE_STOPPED');
+        return true;
       }
 
-      return result is ServiceRequestSuccess;
+      return false;
     } catch (e) {
       developer.log('SERVICE_STOP_ERROR error: $e', level: 1000, error: e);
       return false;
+    }
+  }
+
+  Future<void> _exportCsvAndCleanup() async {
+    try {
+      final entries = await _storageService.getAllStepLogEntries();
+      if (entries.isEmpty) {
+        developer.log('NO_DATA_TO_EXPORT');
+        return;
+      }
+
+      // Get today's date for filename
+      final today = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(today);
+      final fileName = '${dateStr}_driver_steps.csv';
+
+      // Get documents directory
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/$fileName');
+
+      // Write CSV header
+      final csvContent = StringBuffer();
+      csvContent.writeln('time,step_number,name,vehicle_id');
+
+      // Write data rows
+      for (final entry in entries) {
+        final timeStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(entry.time);
+        csvContent.writeln(
+          '$timeStr,${entry.stepNumber},${entry.name},${entry.vehicleId}',
+        );
+      }
+
+      // Write to file
+      await file.writeAsString(csvContent.toString());
+      developer.log(
+        'CSV_EXPORTED: $fileName, entries=${entries.length}, path=${file.path}',
+      );
+
+      // Clear database after export
+      await _storageService.clearAllStepLogEntries();
+      developer.log('DATABASE_CLEARED');
+    } catch (e) {
+      developer.log('EXPORT_CSV_ERROR: $e', level: 1000, error: e);
+    }
+  }
+
+  Future<void> _cleanOldCsvFiles() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final files = dir.listSync();
+      final now = DateTime.now();
+      final threeDaysAgo = now.subtract(const Duration(days: 3));
+
+      int deletedCount = 0;
+      for (final file in files) {
+        if (file is File && file.path.endsWith('_driver_steps.csv')) {
+          final stat = await file.stat();
+          if (stat.modified.isBefore(threeDaysAgo)) {
+            await file.delete();
+            deletedCount++;
+            developer.log('DELETED_OLD_CSV: ${file.path}');
+          }
+        }
+      }
+
+      if (deletedCount > 0) {
+        developer.log('CLEANED_OLD_CSV_FILES: count=$deletedCount');
+      }
+    } catch (e) {
+      developer.log('CLEAN_OLD_CSV_ERROR: $e', level: 1000, error: e);
     }
   }
 }
@@ -257,246 +236,96 @@ Future<void> startCallback() async {
 }
 
 class StepCounterTaskHandler extends TaskHandler {
-  StreamSubscription? _stepSubscription;
-
+  Timer? _periodicTimer;
   final _storageService = StorageService.instance;
-
-  // Date tracking
-  DateTime? _currentTrackingDate;
-
-  // Debounce variables
-  Timer? _debounceTimer;
-  int _callCounter = 0;
-  static const int _maxCallsBeforeForce = 5;
-  static const Duration _debounceDuration = Duration(milliseconds: 350);
-
-  // Processing flag to prevent race condition
-  bool _isProcessing = false;
-  bool _hasPendingUpdate = false; // Flag to track pending update
-
-  final pedoInstance = Pedometer();
+  final _pedoInstance = Pedometer();
+  DateTime? _startTime;
+  String? _driverName;
+  String? _vehicleId;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    developer.log('SERVICE_START: name: $starter');
+    developer.log('SERVICE_START: timestamp=$timestamp');
     await _storageService.initialize();
-    await _updateServiceState(true);
-    await _beginBackgroundStepCounting();
+
+    // Get start time and driver info from app state
+    final appState = await _storageService.getAppState();
+    _startTime = appState.startEventTime;
+    _driverName = appState.driverName;
+    _vehicleId = appState.vehicleId;
+
+    if (_startTime == null || _driverName == null || _vehicleId == null) {
+      developer.log(
+        'MISSING_START_INFO: $_startTime | $_driverName | $_vehicleId',
+      );
+      return;
+    }
+
+    // Start periodic timer (30 seconds)
+    _periodicTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+      await _logStepCount();
+    });
+
+    // Log immediately on start
+    await _logStepCount();
   }
 
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  void onRepeatEvent(DateTime timestamp) {
+    // Not used in simplified flow
+  }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isDestroyed) async {
-    // Cancel pedometer subscription if active
-    await _stepSubscription?.cancel();
-    _stepSubscription = null;
-    // Cancel debounce timer if active
-    _debounceTimer?.cancel();
-    _debounceTimer = null;
+    developer.log('SERVICE_DESTROY: timestamp=$timestamp');
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
   }
 
-  Future<void> _updateServiceState(bool isRunning) async {
-    var appState = await _storageService.getAppState();
-    appState = appState..isServiceRunning = isRunning;
-    if (appState.startEventTime == null) {
-      appState = appState..startEventTime = DateTime.now();
-    }
-    await _storageService.saveAppState(appState);
-  }
-
-  DateTime _convertDayToKey(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
-  }
-
-  Future<void> _beginBackgroundStepCounting() async {
+  Future<void> _logStepCount() async {
     try {
-      final todayDate = _convertDayToKey(DateTime.now());
-      _currentTrackingDate = todayDate;
-
-      if (Platform.isIOS) {
-        _listenerIOS();
-      } else if (Platform.isAndroid) {
-        _listenerAndroid();
-      }
-    } catch (e) {
-      developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
-    }
-  }
-
-  Future<void> _finalizeOldDay(DateTime date) async {
-    final endOfOldDay = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      23,
-      59,
-      59,
-      999,
-    );
-
-    final finalSteps = await pedoInstance.getStepCount(
-      from: date,
-      to: endOfOldDay,
-    );
-
-    final oldDayRecord = await _storageService.getTodayRecord(date);
-    final finalizedRecord = oldDayRecord
-      ..steps = finalSteps
-      ..lastUpdateTime = DateTime.now();
-    await _storageService.addDailyStepRecord(finalizedRecord);
-  }
-
-  void _listenerAndroid() {
-    _stepSubscription = pedoInstance.stepCountStream().listen(
-      (_) async {
-        // If processing, mark as pending and return
-        if (_isProcessing) {
-          _hasPendingUpdate = true;
-          return;
-        }
-
-        try {
-          _callCounter++;
-          final shouldForceUpdate = _callCounter >= _maxCallsBeforeForce;
-          _debounceTimer?.cancel();
-
-          if (shouldForceUpdate) {
-            // Force update immediately after 5 calls
-            _callCounter = 0;
-            await _processStepUpdate();
-          } else {
-            // Debounce: wait 350ms without new event before updating
-            _debounceTimer = Timer(_debounceDuration, () async {
-              _callCounter = 0;
-              await _processStepUpdate();
-            });
-          }
-        } catch (e) {
-          developer.log('PEDOMETER_LISTENER_ERROR: $e', level: 1000, error: e);
-          _isProcessing = false;
-          _hasPendingUpdate = false;
-        }
-      },
-      onError: (error) {
-        developer.log('PEDOMETER_STREAM_ERROR: ${error.toString()}');
-      },
-      cancelOnError: false,
-    );
-  }
-
-  Future<void> _processStepUpdate({
-    int? stepsFromStream,
-    Future<void> Function()? onDateChanged,
-  }) async {
-    if (_isProcessing) return;
-    if (_currentTrackingDate == null) return;
-
-    _isProcessing = true;
-    _hasPendingUpdate = false; // Reset pending flag when starting to process
-
-    try {
-      // Check for date change
-      final todayKey = _convertDayToKey(DateTime.now());
-      if (!_currentTrackingDate!.isAtSameMomentAs(todayKey)) {
-        // Date changed - finalize old day
-        await _finalizeOldDay(_currentTrackingDate!);
-        _currentTrackingDate = todayKey;
-
-        // iOS: restart listener, Android: just continue
-        if (onDateChanged != null) {
-          await onDateChanged();
-          return;
-        }
+      if (_startTime == null || _driverName == null || _vehicleId == null) {
+        return;
       }
 
-      // Get steps: from stream (iOS) or query sensor (Android)
-      final steps =
-          stepsFromStream ??
-          await pedoInstance.getStepCount(
-            from: _currentTrackingDate!,
-            to: DateTime.now(),
-          );
+      final now = DateTime.now();
+      // Get step count from start time to now
+      final totalStepCount = await _pedoInstance.getStepCount(
+        from: DateTime(now.year, now.month, now.day),
+        to: now.add(const Duration(days: 1, seconds: -1)),
+      );
 
-      await _handleDailyStepChange(steps, _currentTrackingDate!);
-    } catch (e) {
-      developer.log('PROCESS_STEP_UPDATE_ERROR: $e', level: 1000, error: e);
-    } finally {
-      _isProcessing = false;
-      // If there is pending update while processing, process again immediately
-      if (_hasPendingUpdate) {
-        _hasPendingUpdate = false;
+      // Get step count from start time to now
+      final stepCount = await _pedoInstance.getStepCount(
+        from: _startTime,
+        to: now.add(const Duration(days: 1, seconds: -1)),
+      );
 
-        // Call again to process latest data
-        await _processStepUpdate();
-      }
-    }
-  }
+      developer.log('totalStepCount: $totalStepCount');
+      developer.log('stepCount: $stepCount');
 
-  void _listenerIOS() {
-    if (_currentTrackingDate == null) return;
+      // Create log entry
+      final entry = StepLogEntry()
+        ..time = now
+        ..stepNumber = stepCount
+        ..name = _driverName!
+        ..vehicleId = _vehicleId!;
 
-    _stepSubscription = pedoInstance
-        .stepCountStreamFrom(from: _currentTrackingDate!)
-        .listen(
-          (steps) async {
-            // If processing, mark as pending and return
-            if (_isProcessing) {
-              _hasPendingUpdate = true;
-              return;
-            }
+      // Save to database
+      await _storageService.addStepLogEntry(entry);
 
-            try {
-              await _processStepUpdate(
-                stepsFromStream: steps,
-                onDateChanged: () async {
-                  // Restart listener with new date
-                  await _stepSubscription?.cancel();
-                  _listenerIOS();
-                },
-              );
-            } catch (e) {
-              developer.log(
-                'PEDOMETER_LISTENER_ERROR: $e',
-                level: 1000,
-                error: e,
-              );
-              _isProcessing = false;
-              _hasPendingUpdate = false;
-            }
-          },
-          onError: (error) {
-            developer.log('PEDOMETER_STREAM_ERROR: ${error.toString()}');
-          },
-          cancelOnError: false,
-        );
-  }
-
-  Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
-    try {
-      final todayRecord = await _storageService.getTodayRecord(date);
-
-      if (deviceSteps < todayRecord.stepsCount) return;
-      final updatedRecord = todayRecord
-        ..steps = deviceSteps
-        ..lastUpdateTime = DateTime.now();
-      await _storageService.addDailyStepRecord(updatedRecord);
-      await _updateNotification(deviceSteps);
-    } catch (e) {
-      developer.log('STEP_HANDLE_ERROR_BG error: $e deviceSteps: $deviceSteps');
-    }
-  }
-
-  Future<void> _updateNotification(int steps) async {
-    try {
+      // Update notification
       await FlutterForegroundTask.updateService(
         notificationTitle: 'Step Counter Active',
         notificationText:
-            '${NumberFormat('#,###').format(steps)} steps today • Last: ${_formatTime(DateTime.now())}',
+            '${NumberFormat('#,###').format(stepCount)} steps • Last: ${_formatTime(now)}',
+      );
+
+      developer.log(
+        'STEP_LOGGED: $now | $stepCount | $_driverName | $_vehicleId',
       );
     } catch (e) {
-      developer.log('NOTIFICATION_UPDATE_ERROR_BG error: $e');
+      developer.log('LOG_STEP_COUNT_ERROR: $e', level: 1000, error: e);
     }
   }
 

@@ -7,4 +7,6 @@ class AppState {
   Id id = 0;
   bool isServiceRunning = false;
   DateTime? startEventTime;
+  String? driverName;
+  String? vehicleId;
 }
