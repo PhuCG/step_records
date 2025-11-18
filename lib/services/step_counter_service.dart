@@ -18,6 +18,20 @@ class StepCounterService {
 
   final _storageService = StorageService.instance;
 
+  // Configurable timer interval (default: 30 seconds)
+  // Can be changed via setTimerInterval() method
+  Duration _timerInterval = const Duration(seconds: 30);
+
+  /// Set the timer interval for step counting
+  /// Default is 30 seconds, can be changed to any duration (e.g., 60s, 1 minute)
+  void setTimerInterval(Duration interval) {
+    _timerInterval = interval;
+    developer.log('TIMER_INTERVAL_SET: ${interval.inSeconds}s');
+  }
+
+  /// Get current timer interval
+  Duration getTimerInterval() => _timerInterval;
+
   Future<void> initialize() async {
     try {
       FlutterForegroundTask.init(
@@ -96,6 +110,10 @@ class StepCounterService {
       appState.vehicleId = vehicleId;
       await _storageService.saveAppState(appState);
 
+      // Pass timer interval to callback via static variable
+      // This allows TaskHandler to access the configured interval
+      _StepCounterTaskHandlerConfig.timerInterval = _timerInterval;
+
       // Start foreground task
       final result = await FlutterForegroundTask.startService(
         notificationTitle: _notificationTitle,
@@ -123,14 +141,16 @@ class StepCounterService {
     }
   }
 
-  Future<bool> stopService() async {
+  /// Stop the step counting service
+  /// Returns the path to the exported CSV file, or null if no data was exported
+  Future<String?> stopService() async {
     try {
       final isServiceRunning = await FlutterForegroundTask.isRunningService;
       if (!isServiceRunning) {
         developer.log('SERVICE_NOT_RUNNING');
         // Still try to export CSV if there's data
-        await _exportCsvAndCleanup();
-        return true;
+        final csvPath = await _exportCsvAndCleanup();
+        return csvPath;
       }
 
       // Stop foreground task first
@@ -138,7 +158,7 @@ class StepCounterService {
 
       if (result is ServiceRequestSuccess) {
         // Export CSV and cleanup
-        await _exportCsvAndCleanup();
+        final csvPath = await _exportCsvAndCleanup();
 
         // Update app state
         var appState = await _storageService.getAppState();
@@ -148,23 +168,25 @@ class StepCounterService {
         appState.vehicleId = null;
         await _storageService.saveAppState(appState);
 
-        developer.log('SERVICE_STOPPED');
-        return true;
+        developer.log('SERVICE_STOPPED, CSV_PATH: $csvPath');
+        return csvPath;
       }
 
-      return false;
+      return null;
     } catch (e) {
       developer.log('SERVICE_STOP_ERROR error: $e', level: 1000, error: e);
-      return false;
+      return null;
     }
   }
 
-  Future<void> _exportCsvAndCleanup() async {
+  /// Export CSV file and cleanup database
+  /// Returns the path to the exported CSV file, or null if no data was exported
+  Future<String?> _exportCsvAndCleanup() async {
     try {
       final entries = await _storageService.getAllStepLogEntries();
       if (entries.isEmpty) {
         developer.log('NO_DATA_TO_EXPORT');
-        return;
+        return null;
       }
 
       // Get today's date for filename
@@ -190,15 +212,19 @@ class StepCounterService {
 
       // Write to file
       await file.writeAsString(csvContent.toString());
+      final csvPath = file.path;
       developer.log(
-        'CSV_EXPORTED: $fileName, entries=${entries.length}, path=${file.path}',
+        'CSV_EXPORTED: $fileName, entries=${entries.length}, path=$csvPath',
       );
 
       // Clear database after export
       await _storageService.clearAllStepLogEntries();
       developer.log('DATABASE_CLEARED');
+
+      return csvPath;
     } catch (e) {
       developer.log('EXPORT_CSV_ERROR: $e', level: 1000, error: e);
+      return null;
     }
   }
 
@@ -230,6 +256,12 @@ class StepCounterService {
   }
 }
 
+/// Configuration class to pass timer interval to TaskHandler
+/// This is needed because TaskHandler runs in isolate and can't access instance variables
+class _StepCounterTaskHandlerConfig {
+  static Duration timerInterval = const Duration(seconds: 30);
+}
+
 @pragma('vm:entry-point')
 Future<void> startCallback() async {
   FlutterForegroundTask.setTaskHandler(StepCounterTaskHandler());
@@ -243,6 +275,7 @@ class StepCounterTaskHandler extends TaskHandler {
   String? _driverName;
   String? _vehicleId;
   int? _lastStepCount;
+  Duration _timerInterval = const Duration(seconds: 30);
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -262,10 +295,15 @@ class StepCounterTaskHandler extends TaskHandler {
       return;
     }
 
-    // Start periodic timer (30 seconds)
-    _periodicTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+    // Get timer interval from config (set before service start)
+    _timerInterval = _StepCounterTaskHandlerConfig.timerInterval;
+
+    // Start periodic timer with configured interval
+    _periodicTimer = Timer.periodic(_timerInterval, (timer) async {
       await _logStepCount();
     });
+
+    developer.log('TIMER_STARTED: interval=${_timerInterval.inSeconds}s');
 
     // Log immediately on start
     await _logStepCount();

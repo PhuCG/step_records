@@ -128,12 +128,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _stopService() async {
     try {
       // UI Layer: Stop service (Service layer will handle the rest)
-      final success = await StepCounterService.instance.stopService();
-      if (success) {
-        _showSuccessSnackBar('Step counting stopped');
+      final csvPath = await StepCounterService.instance.stopService();
+      if (csvPath != null) {
+        _showSuccessSnackBar(
+          'Step counting stopped\nCSV exported to: $csvPath',
+        );
         // No need to refresh - watchers will handle UI updates
       } else {
-        _showErrorSnackBar('Failed to stop step counting');
+        _showSuccessSnackBar('Step counting stopped\nNo data to export');
       }
     } catch (e) {
       _showErrorSnackBar('Error stopping service: $e');
