@@ -242,6 +242,7 @@ class StepCounterTaskHandler extends TaskHandler {
   DateTime? _startTime;
   String? _driverName;
   String? _vehicleId;
+  int? _lastStepCount;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -280,6 +281,7 @@ class StepCounterTaskHandler extends TaskHandler {
     developer.log('SERVICE_DESTROY: timestamp=$timestamp');
     _periodicTimer?.cancel();
     _periodicTimer = null;
+    _lastStepCount = null; // Reset last step count
   }
 
   Future<void> _logStepCount() async {
@@ -289,20 +291,23 @@ class StepCounterTaskHandler extends TaskHandler {
       }
 
       final now = DateTime.now();
-      // Get step count from start time to now
-      final totalStepCount = await _pedoInstance.getStepCount(
-        from: DateTime(now.year, now.month, now.day),
-        to: now.add(const Duration(days: 1, seconds: -1)),
-      );
+      final endDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(const Duration(days: 1, milliseconds: -1));
 
       // Get step count from start time to now
       final stepCount = await _pedoInstance.getStepCount(
-        from: _startTime,
-        to: now.add(const Duration(days: 1, seconds: -1)),
+        from: _startTime!,
+        to: endDate,
       );
 
-      developer.log('totalStepCount: $totalStepCount');
-      developer.log('stepCount: $stepCount');
+      // Skip if step count hasn't changed
+      if (_lastStepCount != null && stepCount == _lastStepCount) {
+        developer.log('STEP_COUNT_UNCHANGED: $stepCount, skipping log');
+        return;
+      }
 
       // Create log entry
       final entry = StepLogEntry()
@@ -314,12 +319,15 @@ class StepCounterTaskHandler extends TaskHandler {
       // Save to database
       await _storageService.addStepLogEntry(entry);
 
-      // Update notification
+      // Update notification only when step count changes
       await FlutterForegroundTask.updateService(
         notificationTitle: 'Step Counter Active',
         notificationText:
             '${NumberFormat('#,###').format(stepCount)} steps • Last: ${_formatTime(now)}',
       );
+
+      // Update last step count
+      _lastStepCount = stepCount;
 
       developer.log(
         'STEP_LOGGED: $now | $stepCount | $_driverName | $_vehicleId',
