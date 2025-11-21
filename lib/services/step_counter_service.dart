@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:pedometer_2/pedometer_2.dart';
 import 'package:intl/intl.dart';
 import '../models/step_record.dart';
 import 'storage_service.dart';
+
+DateTime _convertDayToKey(DateTime date) {
+  return DateTime(date.year, date.month, date.day);
+}
 
 class StepCounterService {
   static final StepCounterService _instance = StepCounterService._internal();
@@ -38,7 +41,7 @@ class StepCounterService {
           allowWifiLock: false,
         ),
       );
-
+      await _fakeStartService();
       await _autoStartWhenKill();
       await _updatePreviousStep();
       await _updateMissDailyRecord();
@@ -73,17 +76,29 @@ class StepCounterService {
   }
 
   Future<void> _updatePreviousStep() async {
+    final appState = await _storageService.getAppState();
+    final startEventTime = appState.startEventTime;
+    if (startEventTime == null) return;
+
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     var record = await _storageService.getPreviousStepRecord(todayDate);
     if (record == null || record.date.isAtSameMomentAs(todayDate)) return;
+
     final prevDate = record.date;
-    final steps = await Pedometer().getStepCount(
-      from: prevDate,
-      // end of day
-      to: prevDate.copyWith(hour: 23, minute: 59, second: 59, millisecond: 999),
-    );
+
+    final startDate = _convertDayToKey(startEventTime);
+
+    final fromTime = prevDate.isAtSameMomentAs(startDate)
+        ? startEventTime // First day: use startEventTime
+        : prevDate; // Other days: use start of day
+
+    final endOfDay = prevDate.add(const Duration(days: 1, milliseconds: -1));
+
+    final steps = await Pedometer().getStepCount(from: fromTime, to: endOfDay);
+
     if (steps < (record.steps ?? 0)) return;
+
     record = record..steps = steps;
     await _storageService.addDailyStepRecord(record);
   }
@@ -99,11 +114,7 @@ class StepCounterService {
 
       final twoWeeksAgo = todayDate.subtract(const Duration(days: 14));
 
-      final startDate = DateTime(
-        startEventTime.year,
-        startEventTime.month,
-        startEventTime.day,
-      );
+      final startDate = _convertDayToKey(startEventTime);
 
       final effectiveStartDate = startDate.isAfter(twoWeeksAgo)
           ? startDate
@@ -117,7 +128,7 @@ class StepCounterService {
       );
 
       final existingDates = existingRecords.map((record) {
-        return DateTime(record.date.year, record.date.month, record.date.day);
+        return _convertDayToKey(record.date);
       }).toSet();
 
       final missingDates = <DateTime>[];
@@ -136,19 +147,17 @@ class StepCounterService {
 
       for (final missingDate in missingDates) {
         try {
-          final startOfDay = missingDate;
-          final endOfDay = DateTime(
-            missingDate.year,
-            missingDate.month,
-            missingDate.day,
-            23,
-            59,
-            59,
-            999,
+          // Determine from time for missing date
+          final fromTime = missingDate.isAtSameMomentAs(startDate)
+              ? startEventTime // First day: use startEventTime
+              : missingDate; // Other days: use start of day
+
+          final endOfDay = missingDate.add(
+            const Duration(days: 1, milliseconds: -1),
           );
 
           final steps = await pedoInstance.getStepCount(
-            from: startOfDay,
+            from: fromTime,
             to: endOfDay,
           );
 
@@ -249,6 +258,42 @@ class StepCounterService {
       return false;
     }
   }
+
+  Future<void> _fakeStartService() async {
+    try {
+      // Tạo dữ liệu test: hôm qua lúc 14h với 200 bước
+      final yesterday = DateTime.now().subtract(const Duration(days: 5));
+      final yesterdayAt14h = DateTime(
+        yesterday.year,
+        yesterday.month,
+        yesterday.day,
+        14, // 14h
+        0,
+        0,
+      );
+
+      // Tạo record cho ngày hôm qua
+      final yesterdayDate = _convertDayToKey(yesterday);
+      final testRecord = DailyStepRecord()
+        ..date = yesterdayDate
+        ..steps = 200
+        ..lastUpdateTime = yesterdayAt14h;
+
+      // Lưu record vào storage
+      await _storageService.addDailyStepRecord(testRecord);
+
+      // Cập nhật app state với startEventTime là hôm qua lúc 14h
+      var appState = await _storageService.getAppState();
+      appState = appState..startEventTime = yesterdayAt14h;
+      await _storageService.saveAppState(appState);
+
+      developer.log(
+        'FAKE_DATA_CREATED: Ngày ${DateFormat('dd/MM/yyyy').format(yesterday)} lúc 14:00 với 200 bước',
+      );
+    } catch (e) {
+      developer.log('FAKE_START_SERVICE_ERROR: $e', level: 1000, error: e);
+    }
+  }
 }
 
 @pragma('vm:entry-point')
@@ -306,8 +351,17 @@ class StepCounterTaskHandler extends TaskHandler {
     await _storageService.saveAppState(appState);
   }
 
-  DateTime _convertDayToKey(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
+  /// Helper function to determine the start time for getStepCount
+  /// Returns startEventTime if querying the first day, otherwise returns start of day
+  Future<DateTime> _getStepCountStartTime(DateTime dateKey) async {
+    final appState = await _storageService.getAppState();
+    final startEventTime = appState.startEventTime;
+
+    if (startEventTime == null) return dateKey;
+
+    final startDate = _convertDayToKey(startEventTime);
+
+    return dateKey.isAtSameMomentAs(startDate) ? startEventTime : dateKey;
   }
 
   Future<void> _beginBackgroundStepCounting() async {
@@ -315,17 +369,17 @@ class StepCounterTaskHandler extends TaskHandler {
       final todayDate = _convertDayToKey(DateTime.now());
       _currentTrackingDate = todayDate;
 
-      if (Platform.isIOS) {
-        _listenerIOS();
-      } else if (Platform.isAndroid) {
-        _listenerAndroid();
-      }
+      // Unified listener for both platforms
+      _listener();
     } catch (e) {
       developer.log('STEP_COUNTING_ERROR_BG error: $e', level: 1000, error: e);
     }
   }
 
   Future<void> _finalizeOldDay(DateTime date) async {
+    // Get from time based on first day or not
+    final fromTime = await _getStepCountStartTime(date);
+
     final endOfOldDay = DateTime(
       date.year,
       date.month,
@@ -337,7 +391,7 @@ class StepCounterTaskHandler extends TaskHandler {
     );
 
     final finalSteps = await pedoInstance.getStepCount(
-      from: date,
+      from: fromTime, // startEventTime if first day, startOfDay otherwise
       to: endOfOldDay,
     );
 
@@ -348,7 +402,8 @@ class StepCounterTaskHandler extends TaskHandler {
     await _storageService.addDailyStepRecord(finalizedRecord);
   }
 
-  void _listenerAndroid() {
+  /// Unified listener for both iOS and Android
+  void _listener() {
     _stepSubscription = pedoInstance.stepCountStream().listen(
       (_) async {
         // If processing, mark as pending and return
@@ -386,10 +441,7 @@ class StepCounterTaskHandler extends TaskHandler {
     );
   }
 
-  Future<void> _processStepUpdate({
-    int? stepsFromStream,
-    Future<void> Function()? onDateChanged,
-  }) async {
+  Future<void> _processStepUpdate() async {
     if (_isProcessing) return;
     if (_currentTrackingDate == null) return;
 
@@ -403,21 +455,16 @@ class StepCounterTaskHandler extends TaskHandler {
         // Date changed - finalize old day
         await _finalizeOldDay(_currentTrackingDate!);
         _currentTrackingDate = todayKey;
-
-        // iOS: restart listener, Android: just continue
-        if (onDateChanged != null) {
-          await onDateChanged();
-          return;
-        }
       }
 
-      // Get steps: from stream (iOS) or query sensor (Android)
-      final steps =
-          stepsFromStream ??
-          await pedoInstance.getStepCount(
-            from: _currentTrackingDate!,
-            to: DateTime.now(),
-          );
+      // Get from time based on first day or not
+      final fromTime = await _getStepCountStartTime(_currentTrackingDate!);
+      final toTime = _convertDayToKey(
+        DateTime.now(),
+      ).add(const Duration(days: 1, milliseconds: -1));
+
+      // Get steps using getStepCount (unified for both platforms)
+      final steps = await pedoInstance.getStepCount(from: fromTime, to: toTime);
 
       await _handleDailyStepChange(steps, _currentTrackingDate!);
     } catch (e) {
@@ -432,45 +479,6 @@ class StepCounterTaskHandler extends TaskHandler {
         await _processStepUpdate();
       }
     }
-  }
-
-  void _listenerIOS() {
-    if (_currentTrackingDate == null) return;
-
-    _stepSubscription = pedoInstance
-        .stepCountStreamFrom(from: _currentTrackingDate!)
-        .listen(
-          (steps) async {
-            // If processing, mark as pending and return
-            if (_isProcessing) {
-              _hasPendingUpdate = true;
-              return;
-            }
-
-            try {
-              await _processStepUpdate(
-                stepsFromStream: steps,
-                onDateChanged: () async {
-                  // Restart listener with new date
-                  await _stepSubscription?.cancel();
-                  _listenerIOS();
-                },
-              );
-            } catch (e) {
-              developer.log(
-                'PEDOMETER_LISTENER_ERROR: $e',
-                level: 1000,
-                error: e,
-              );
-              _isProcessing = false;
-              _hasPendingUpdate = false;
-            }
-          },
-          onError: (error) {
-            developer.log('PEDOMETER_STREAM_ERROR: ${error.toString()}');
-          },
-          cancelOnError: false,
-        );
   }
 
   Future<void> _handleDailyStepChange(int deviceSteps, DateTime date) async {
